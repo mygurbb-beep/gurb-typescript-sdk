@@ -1,0 +1,20 @@
+{
+  "name": "gurb-typescript-sdk",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Official TypeScript SDK for the Gurb community platform",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "vitest run",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "jsdom": "^25.0.1",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "engines": { "node": ">=20" }
+}

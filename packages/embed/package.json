@@ -1,0 +1,23 @@
+{
+  "name": "@gurb/embed",
+  "version": "0.1.0",
+  "description": "Browser SDK for embedding a Gurb community section. Never handles secret keys.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "unpkg": "./dist/index.global.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs,iife --global-name GurbEmbed --dts --clean"
+  },
+  "dependencies": { "@gurb/api-types": "0.1.0" },
+  "sideEffects": false
+}

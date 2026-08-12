@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>متجر سارة — المجتمع</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f6f7f8; color: #093431 }
+    header { background: #093431; color: #fff; padding: 14px 20px; display: flex; gap: 12px; align-items: center }
+    header strong { font-size: 18px }
+    header span { margin-inline-start: auto; font-size: 13px; opacity: .85 }
+    main { max-width: 720px; margin: 24px auto; padding: 0 16px }
+    .card { background: #fff; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); overflow: hidden }
+    .card h2 { margin: 0; padding: 14px 16px; font-size: 15px; border-bottom: 1px solid #eef0f2 }
+    .note { font-size: 13px; color: #6b7280; margin: 14px 2px }
+    .badge { background: #E8B830; color: #093431; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600 }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>متجر سارة</strong>
+    <span>مسجّل الدخول: سارة العتيبي <span class="badge">عميلة</span></span>
+  </header>
+
+  <main>
+    <p class="note">القسم أدناه يعمل داخل iframe من قرب. المفتاح السري لم يغادر خادم المتجر.</p>
+    <div class="card">
+      <h2>مجتمع المتجر</h2>
+      <div id="community"></div>
+    </div>
+    <p class="note" id="status">…</p>
+  </main>
+
+  <script src="/gurb-embed.js"></script>
+  <script>
+    const status = document.getElementById('status')
+
+    GurbEmbed.mount({
+      target: '#community',
+      slug: 'demo',
+      section: 'tweets',
+      baseUrl: '__GURB_URL__',
+      initialHeight: 240,
+      // Fetch a fresh token per mount: they are single-use and short-lived, so
+      // baking one into the HTML would often hand the user a dead token.
+      fetchToken: () =>
+        fetch('/api/gurb-token', { method: 'POST' })
+          .then((r) => r.json())
+          .then((d) => d.token),
+      onReady: () => { status.textContent = '✅ الإطار جاهز — الهوية رُبطت والجلسة بُدّلت' },
+      onError: (e) => { status.textContent = '⚠️ ' + e.message },
+    })
+  </script>
+</body>
+</html>
