@@ -335,3 +335,99 @@ describe('bulk membership', () => {
     ).resolves.toMatchObject({ failed: [{ index: 1 }] })
   })
 })
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  The rest of the community's sections
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('every content section the platform serves', () => {
+  it('lists blogs with a resolved author', async () => {
+    const feed = await community().blogs.list({ limit: 10 })
+
+    expect(feed.items.length).toBeGreaterThan(0)
+    const blog = feed.items[0]!
+    expect(blog.author.userId).toMatch(/^usr_/)
+    expect(blog.author.displayName).not.toBe('')
+    expect(blog.publishedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+
+  it('lists private groups rather than hiding them', async () => {
+    const groups = await community().groups.list()
+
+    // An SDK caller acts FOR the community, so a private group is data it owns.
+    // Filtering it out would make `isPrivate` a constant false.
+    expect(groups.items.some((g) => g.isPrivate)).toBe(true)
+    expect(groups.items.every((g) => typeof g.memberCount === 'number')).toBe(true)
+  })
+
+  it('lists consultants, whose title is null because no column backs it', async () => {
+    const consultants = await community().consultants.list()
+
+    const first = consultants.items[0]!
+    expect(first.displayName).not.toBe('')
+    // Not an oversight: the table models an offered service, not a person. The
+    // field stays in the contract so it need not change when a column arrives.
+    expect(first.title).toBeNull()
+    expect(Array.isArray(first.specialties)).toBe(true)
+  })
+
+  it('lists both project modules independently', async () => {
+    const [one, two] = await Promise.all([
+      community().projects.list(),
+      community().projects2.list(),
+    ])
+
+    // A genuine parallel module, not a version. Both can be enabled at once, so
+    // the SDK exposes both instead of guessing which a community means.
+    expect(one.items[0]!.id).toMatch(/^prj_/)
+    expect(two.items[0]!.id).toMatch(/^pr2_/)
+  })
+
+  it('lists awards with a null awardedAt, because this is the catalogue', async () => {
+    const awards = await community().awards.list()
+
+    const award = awards.items[0]!
+    expect(award.title).not.toBe('')
+    // `awards` defines the medals; WHEN one was granted belongs to the grant
+    // (`award_recipients`), not to the definition.
+    expect(award.awardedAt).toBeNull()
+  })
+
+  it('paginates every section with the same envelope', async () => {
+    const client = community()
+    const sections = [
+      client.tweets.list({ limit: 2 }),
+      client.events.list({ limit: 2 }),
+      client.albums.list({ limit: 2 }),
+      client.blogs.list({ limit: 2 }),
+      client.groups.list({ limit: 2 }),
+      client.consultants.list({ limit: 2 }),
+      client.projects.list({ limit: 2 }),
+      client.projects2.list({ limit: 2 }),
+      client.awards.list({ limit: 2 }),
+      client.members.list({ limit: 2 }),
+    ]
+
+    for (const page of await Promise.all(sections)) {
+      // One envelope for all ten. A caller writes pagination once.
+      expect(page).toMatchObject({
+        page: 1,
+        limit: 2,
+        total: expect.any(Number),
+        hasMore: expect.any(Boolean),
+      })
+      expect(Array.isArray(page.items)).toBe(true)
+    }
+  })
+
+  it('still surfaces a plan gate as a typed error when one applies', async () => {
+    // The mock gates blogs only when asked, so the section can be listed AND
+    // the 403 path stays demonstrable.
+    const response = await fetch(`${baseUrl}/api/sdk/blogs?gated=1`, {
+      headers: { 'X-Api-Key': KEY },
+    })
+
+    expect(response.status).toBe(403)
+    expect((await response.json()).error).toBe('FEATURE_NOT_AVAILABLE')
+  })
+})

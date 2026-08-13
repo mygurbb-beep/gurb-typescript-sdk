@@ -103,6 +103,61 @@ export interface Album {
   createdAt: string
 }
 
+export interface Group {
+  id: string
+  name: string
+  description: string | null
+  coverUrl: string | null
+  memberCount: number
+  /** Published as a field rather than filtered out — an SDK caller acts for the
+   *  community and may legitimately list its private groups. */
+  isPrivate: boolean
+  createdAt: string
+}
+
+/**
+ * A consultancy LISTING, not a person.
+ *
+ * The underlying table models an offered service, which is why `title` has no
+ * backing column and is always null today, and why `specialties` comes from a
+ * relation rather than a field. Kept in the shape so the contract does not have
+ * to change when a title column arrives.
+ */
+export interface Consultant {
+  id: string
+  displayName: string
+  title: string | null
+  bio: string | null
+  avatarUrl: string | null
+  specialties: string[]
+  createdAt: string
+}
+
+export interface Project {
+  id: string
+  title: string
+  description: string | null
+  coverUrl: string | null
+  status: string | null
+  createdAt: string
+}
+
+/**
+ * An award the community DEFINES — the medal, not the granting of it.
+ *
+ * `awardedAt` is therefore null: when a medal was given is a property of a
+ * grant (`award_recipients`), not of the catalogue row. A future
+ * `awards/:id/recipients` resource is where real timestamps belong.
+ */
+export interface Award {
+  id: string
+  title: string
+  description: string | null
+  imageUrl: string | null
+  awardedAt: string | null
+  createdAt: string
+}
+
 export interface Member {
   userId: string
   memberId: string

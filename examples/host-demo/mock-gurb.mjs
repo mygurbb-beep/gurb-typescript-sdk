@@ -58,6 +58,36 @@ const FIXTURES = {
   albums: [
     { id: 'alb_1', title: 'اللقاء السنوي', description: null, coverUrl: null, photoCount: 24, createdAt: '2026-07-01T08:00:00.000Z' },
   ],
+  blogs: [1, 2].map((n) => ({
+    id: `blg_${n}`,
+    title: ['كيف نبني مجتمعاً', 'خلف الكواليس'][n - 1],
+    excerpt: 'مقتطف قصير من المقال…',
+    coverUrl: null,
+    author: { userId: `usr_${n}`, displayName: `عضو ${n}`, avatarUrl: null },
+    publishedAt: `2026-06-0${n}T09:00:00.000Z`,
+    createdAt: `2026-06-0${n}T08:00:00.000Z`,
+  })),
+  groups: [
+    { id: 'grp_1', name: 'المهتمون بالتقنية', description: null, coverUrl: null, memberCount: 42, isPrivate: false, createdAt: '2026-03-01T10:00:00.000Z' },
+    // A private group is LISTED, not hidden: the caller acts for the community.
+    { id: 'grp_2', name: 'مجلس الإدارة', description: null, coverUrl: null, memberCount: 5, isPrivate: true, createdAt: '2026-03-02T10:00:00.000Z' },
+  ],
+  consultants: [
+    // `title` is null on purpose — the table models an offered service, not a
+    // person, and has no title column. The field stays in the shape anyway.
+    { id: 'con_1', displayName: 'استشارة قانونية', title: null, bio: 'استشارات في أنظمة الشركات', avatarUrl: null, specialties: ['قانون', 'عقود'], createdAt: '2026-04-01T10:00:00.000Z' },
+  ],
+  projects: [
+    { id: 'prj_1', title: 'مبادرة التشجير', description: 'زراعة ألف شجرة', coverUrl: null, status: 'ACTIVE', createdAt: '2026-05-01T10:00:00.000Z' },
+  ],
+  projects2: [
+    { id: 'pr2_1', title: 'برنامج الإرشاد', description: null, coverUrl: null, status: 'ACTIVE', createdAt: '2026-05-10T10:00:00.000Z' },
+  ],
+  awards: [
+    // `awardedAt` is null: this is the CATALOGUE of medals a community defines.
+    // When one was granted lives on the grant, not on the definition.
+    { id: 'awd_1', title: 'وسام العطاء', description: 'لمن قدّم أثراً بارزاً', imageUrl: null, awardedAt: null, createdAt: '2026-02-01T10:00:00.000Z' },
+  ],
 }
 
 /**
@@ -312,7 +342,9 @@ async function handleCommunity(req, res, url, route) {
 
   // Stands in for a module the community's plan does not include, so error
   // handling is something you can actually try rather than read about.
-  if (method === 'GET' && route === 'blogs') {
+  // The plan-gate demonstration now needs asking for: `?gated=1`. Blogs are a
+  // real listable section, and a permanently-403 endpoint could not be one.
+  if (method === 'GET' && route === 'blogs' && url.searchParams.get('gated') === '1') {
     return json(res, 403, {
       success: false,
       error: 'FEATURE_NOT_AVAILABLE',
@@ -321,7 +353,8 @@ async function handleCommunity(req, res, url, route) {
     })
   }
 
-  if (method === 'GET' && (route === 'tweets' || route === 'events' || route === 'albums')) {
+  const LISTABLE = ['tweets', 'events', 'albums', 'blogs', 'groups', 'consultants', 'projects', 'projects2', 'awards']
+  if (method === 'GET' && LISTABLE.includes(route)) {
     return json(res, 200, { success: true, data: paginate(FIXTURES[route], url) })
   }
 

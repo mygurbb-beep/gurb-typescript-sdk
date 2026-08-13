@@ -1,10 +1,12 @@
 import {
   BULK_MEMBER_LIMIT,
   type Album,
+  type Award,
   type Blog,
   type BulkMemberInput,
   type BulkMemberResult,
   type Community,
+  type Consultant,
   type CommunityRequest,
   type CommunityRole,
   type CreateCommunityInput,
@@ -12,9 +14,11 @@ import {
   type EmbedSection,
   type EmbedSession,
   type Event,
+  type Group,
   type Member,
   type MemberPermissions,
   type Paginated,
+  type Project,
   type PaginationParams,
   type Permission,
   type Tweet,
@@ -104,6 +108,36 @@ export class GurbClient {
   albums = {
     list: (params: PaginationParams = {}): Promise<Paginated<Album>> =>
       this.#http.request('GET', 'sdk/albums', { query: { ...params } }),
+  }
+
+  groups = {
+    list: (params: PaginationParams = {}): Promise<Paginated<Group>> =>
+      this.#http.request('GET', 'sdk/groups', { query: { ...params } }),
+  }
+
+  consultants = {
+    list: (params: PaginationParams = {}): Promise<Paginated<Consultant>> =>
+      this.#http.request('GET', 'sdk/consultants', { query: { ...params } }),
+  }
+
+  projects = {
+    list: (params: PaginationParams = {}): Promise<Paginated<Project>> =>
+      this.#http.request('GET', 'sdk/projects', { query: { ...params } }),
+  }
+
+  /**
+   * The second projects module. A parallel implementation that some communities
+   * use instead of `projects`; both may be enabled, so the SDK exposes both
+   * rather than guessing which one a community means.
+   */
+  projects2 = {
+    list: (params: PaginationParams = {}): Promise<Paginated<Project>> =>
+      this.#http.request('GET', 'sdk/projects2', { query: { ...params } }),
+  }
+
+  awards = {
+    list: (params: PaginationParams = {}): Promise<Paginated<Award>> =>
+      this.#http.request('GET', 'sdk/awards', { query: { ...params } }),
   }
 
   // ─── Members, roles and permissions ────────────────────────────────────────
