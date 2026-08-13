@@ -1,6 +1,6 @@
 {
   "name": "@gurb/server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Server-side Gurb SDK. Holds your API key — never import this in browser code.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -13,8 +13,40 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": ["dist"],
-  "scripts": { "build": "tsup src/index.ts --format esm,cjs --dts --clean" },
-  "dependencies": { "@gurb/api-types": "0.1.0" },
-  "engines": { "node": ">=20" }
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@gurb/api-types": "^0.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "author": "Gurb",
+  "homepage": "https://mygurb.com",
+  "bugs": {
+    "url": "https://github.com/mygurbb-beep/gurb-typescript-sdk/issues"
+  },
+  "keywords": [
+    "gurb",
+    "mygurb",
+    "community",
+    "sdk",
+    "embed",
+    "api"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mygurbb-beep/gurb-typescript-sdk.git",
+    "directory": "packages/server"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

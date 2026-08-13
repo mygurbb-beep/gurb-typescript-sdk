@@ -139,3 +139,75 @@ describe('embed sessions', () => {
     expect(new URL(url).search).toBe('')
   })
 })
+
+// ─── Members, permissions and bulk ───────────────────────────────────────────
+
+describe('permissions', () => {
+  it('refuses to grant and revoke the same permission in one call', async () => {
+    const { fn, calls } = stubFetch(200, {})
+    const client = createGurbClient({ apiKey: KEY, fetch: fn })
+
+    await expect(
+      client.members.updatePermissions('mem_1', { grant: ['CREATE_POST'], revoke: ['CREATE_POST'] }),
+    ).rejects.toThrow(/grant and revoke the same permission/)
+    // The point is that it never reached the network — there is no correct
+    // guess at what was meant, so asking the server is not a fix.
+    expect(calls).toHaveLength(0)
+  })
+
+  it('refuses an empty change set', async () => {
+    const client = createGurbClient({ apiKey: KEY, fetch: stubFetch(200, {}).fn })
+    await expect(client.members.updatePermissions('mem_1', {})).rejects.toThrow(/at least one permission/)
+  })
+
+  it('sends both lists in one request so the member is never half-updated', async () => {
+    const { fn, calls } = stubFetch(200, { data: {} })
+    const client = createGurbClient({ apiKey: KEY, baseUrl: 'https://x.test', fetch: fn })
+
+    await client.members.updatePermissions('mem_1', { grant: ['CREATE_EVENT'], revoke: ['CREATE_POST'] })
+
+    expect(calls[0]!.init.method).toBe('PATCH')
+    expect(calls[0]!.url).toBe('https://x.test/api/sdk/members/mem_1/permissions')
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
+      grant: ['CREATE_EVENT'],
+      revoke: ['CREATE_POST'],
+    })
+  })
+})
+
+describe('bulk members', () => {
+  const rows = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({ externalUserId: `u${i}`, displayName: `User ${i}` }))
+
+  it('rejects an empty list', async () => {
+    const client = createGurbClient({ apiKey: KEY, fetch: stubFetch(200, {}).fn })
+    await expect(client.members.bulkUpsert([])).rejects.toThrow(/at least one member/)
+  })
+
+  it('rejects a list over the limit without sending it', async () => {
+    const { fn, calls } = stubFetch(200, {})
+    const client = createGurbClient({ apiKey: KEY, fetch: fn })
+
+    await expect(client.members.bulkUpsert(rows(501))).rejects.toThrow(/at most 500/)
+    // Sending it would likely die at a proxy timeout with no way to know which
+    // half landed — worse than a clean local failure.
+    expect(calls).toHaveLength(0)
+  })
+
+  it('accepts exactly the limit', async () => {
+    const { fn } = stubFetch(200, { data: { created: [], updated: [], failed: [], total: 500 } })
+    const client = createGurbClient({ apiKey: KEY, fetch: fn })
+    await expect(client.members.bulkUpsert(rows(500))).resolves.toMatchObject({ total: 500 })
+  })
+
+  it('names a duplicate id rather than letting the batch race itself', async () => {
+    const client = createGurbClient({ apiKey: KEY, fetch: stubFetch(200, {}).fn })
+
+    await expect(
+      client.members.bulkUpsert([
+        { externalUserId: 'dup', displayName: 'A' },
+        { externalUserId: 'dup', displayName: 'B' },
+      ]),
+    ).rejects.toThrow(/Duplicate externalUserId in the same batch: dup/)
+  })
+})

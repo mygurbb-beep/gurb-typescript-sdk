@@ -1,35 +1,68 @@
 import { GurbApiError } from './errors.js'
 
 /**
- * A Gurb API key is `gurb_<keyId>_<secret>`.
+ * Two credential shapes, deliberately not interchangeable.
  *
- * The `gurb_` prefix exists so a key is distinguishable from a session JWT
- * (which starts `eyJ`) by shape alone — the backend routes on that, and so do
- * secret scanners. Validating here rather than on first request means an
- * integrator who pasted the wrong string learns at construction time instead of
- * debugging a 401 against a route that was never the problem.
+ *   gurb_<12 hex>_<secret>        a community key   — one community, forever
+ *   gurb_sa_<12 hex>_<secret>     a super-admin key — the whole platform
+ *
+ * The shapes are mutually exclusive by construction: `sa` is not twelve hex
+ * characters, so an admin key can never satisfy the community pattern. That
+ * matters more than it looks. The blast radius of the two is not comparable —
+ * a leaked community key creates junk in one community, a leaked admin key can
+ * create communities and mint further keys — so the wrong one must fail loudly
+ * at construction rather than quietly at the first 403.
+ *
+ * The `gurb_` prefix also distinguishes both from a session JWT (which starts
+ * `eyJ`), which is what the platform routes on and what secret scanners match.
  */
-const KEY_PATTERN = /^gurb_[a-f0-9]{12}_[A-Za-z0-9_-]{20,}$/
+const COMMUNITY_KEY_PATTERN = /^gurb_[a-f0-9]{12}_[A-Za-z0-9_-]{20,}$/
+const ADMIN_KEY_PATTERN = /^gurb_sa_[a-f0-9]{12}_[A-Za-z0-9_-]{20,}$/
 
-export function assertValidApiKey(key: unknown): asserts key is string {
+function reject(message: string): never {
+  throw new GurbApiError({ message, code: 'INVALID_API_KEY', status: 0 })
+}
+
+function assertPresent(key: unknown, what: string): asserts key is string {
   if (typeof key !== 'string' || key.length === 0) {
-    throw new GurbApiError({
-      message: 'A Gurb API key is required. Pass { apiKey } to createGurbClient().',
-      code: 'INVALID_API_KEY',
-      status: 0,
-    })
+    reject(`A Gurb ${what} is required.`)
   }
+}
 
-  if (!KEY_PATTERN.test(key)) {
-    const looksLikeJwt = key.startsWith('eyJ')
-    throw new GurbApiError({
-      message: looksLikeJwt
-        ? 'That is a session JWT, not an API key. API keys look like gurb_<id>_<secret> and are minted from the community dashboard.'
-        : 'Malformed Gurb API key. Expected the format gurb_<id>_<secret>.',
-      code: 'INVALID_API_KEY',
-      status: 0,
-    })
+/** Validates a community-scoped key: the credential `GurbClient` accepts. */
+export function assertValidApiKey(key: unknown): asserts key is string {
+  assertPresent(key, 'API key')
+
+  if (COMMUNITY_KEY_PATTERN.test(key)) return
+
+  if (ADMIN_KEY_PATTERN.test(key)) {
+    reject(
+      'That is a super-admin key, not a community API key. Use GurbAdminClient for platform operations — passing an admin key here would give ordinary application code far more authority than it needs.',
+    )
   }
+  reject(
+    key.startsWith('eyJ')
+      ? 'That is a session JWT, not an API key. API keys look like gurb_<id>_<secret> and are minted from the community dashboard.'
+      : 'Malformed Gurb API key. Expected the format gurb_<id>_<secret>.',
+  )
+}
+
+/** Validates a platform super-admin key: the credential `GurbAdminClient` accepts. */
+export function assertValidAdminKey(key: unknown): asserts key is string {
+  assertPresent(key, 'super-admin key')
+
+  if (ADMIN_KEY_PATTERN.test(key)) return
+
+  if (COMMUNITY_KEY_PATTERN.test(key)) {
+    reject(
+      'That is a community API key, not a super-admin key. Community keys cannot create communities or mint other keys; use GurbClient with it instead.',
+    )
+  }
+  reject(
+    key.startsWith('eyJ')
+      ? 'That is a session JWT, not a super-admin key. Admin keys look like gurb_sa_<id>_<secret>.'
+      : 'Malformed Gurb super-admin key. Expected the format gurb_sa_<id>_<secret>.',
+  )
 }
 
 /**
@@ -38,13 +71,12 @@ export function assertValidApiKey(key: unknown): asserts key is string {
  * The package boundary and the `exports` map already make this hard to do by
  * accident; this is the layer that turns a mistake into a loud failure during
  * development rather than a secret shipped in a JS bundle. `@gurb/embed` is the
- * browser-side package and it cannot express an API key at all.
+ * browser-side package and it cannot express a key at all.
  */
-export function assertServerEnvironment(): void {
+export function assertServerEnvironment(what = '@gurb/server'): void {
   if (typeof window !== 'undefined' || typeof document !== 'undefined') {
     throw new GurbApiError({
-      message:
-        '@gurb/server must never run in a browser — it holds your secret API key. Use @gurb/embed on the client and mint embed sessions from your own backend.',
+      message: `${what} must never run in a browser — it holds a secret key. Use @gurb/embed on the client and mint embed sessions from your own backend.`,
       code: 'INVALID_API_KEY',
       status: 0,
     })

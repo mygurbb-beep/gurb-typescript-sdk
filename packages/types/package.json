@@ -1,6 +1,6 @@
 {
   "name": "@gurb/api-types",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shared request/response types for the Gurb API. No runtime code.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -13,6 +13,32 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": ["dist"],
-  "scripts": { "build": "tsup src/index.ts --format esm,cjs --dts --clean" }
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "prepublishOnly": "npm run build"
+  },
+  "license": "MIT",
+  "author": "Gurb",
+  "homepage": "https://mygurb.com",
+  "bugs": {
+    "url": "https://github.com/mygurbb-beep/gurb-typescript-sdk/issues"
+  },
+  "keywords": [
+    "gurb",
+    "mygurb",
+    "community",
+    "types"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mygurbb-beep/gurb-typescript-sdk.git",
+    "directory": "packages/types"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

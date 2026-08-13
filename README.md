@@ -81,6 +81,111 @@ the frame exactly as they do on mygurb.com, because the embedded user is an ordi
 - **Send an API key to the browser.** `mount()` rejects any token starting with `gurb_`, and
   `createGurbClient()` throws if it detects a `window`.
 
+## Platform administration
+
+Creating communities and minting keys are **not** things an ordinary integration does, so they
+live in a different client with a different credential:
+
+| Client | Key | Can do |
+|---|---|---|
+| `GurbClient` | `gurb_<id>_<secret>` | One community: read, members, permissions, embed |
+| `GurbAdminClient` | `gurb_sa_<id>_<secret>` | The platform: create communities, mint and revoke keys |
+
+The two are **not interchangeable**, and each refuses the other's key at construction:
+
+```ts
+createGurbClient({ apiKey: 'gurb_sa_...' })
+// → That is a super-admin key, not a community API key. Use GurbAdminClient…
+```
+
+That is not politeness. The blast radius differs by orders of magnitude — a leaked community key
+creates junk in one community, a leaked admin key can create communities and mint further keys —
+so the wrong one must fail loudly at construction, not quietly at the first 403.
+
+```ts
+import { createGurbAdminClient } from '@gurb/server'
+
+const admin = createGurbAdminClient({ adminKey: process.env.GURB_ADMIN_KEY! })
+
+const community = await admin.communities.create({ name: 'مجتمع الحرفيين', slug: 'crafts' })
+
+// The plaintext key is in this response and nowhere else, ever.
+const key = await admin.apiKeys.create({ communityId: community.id, name: 'zapier' })
+console.log(key.key)   // gurb_a1b2…  — hand it over now or mint another
+```
+
+Keys default to `['read']`. Ask for `['write']` only when the integration genuinely writes: a
+read-only key that leaks is an incident you can close.
+
+## Creating a community by approval
+
+A community key cannot create a community outright. It files a request that a platform admin
+decides on — the same gate the dashboard uses:
+
+```ts
+const request = await gurb.community.requestCreation({ name: 'مجتمع الحرفيين', slug: 'crafts' })
+// request.status === 'PENDING', request.communityId === null
+
+// …later, on the admin side
+const approved = await admin.communityRequests.approve(request.id)
+// approved.status === 'APPROVED', approved.communityId === 'cmt_…'
+
+await admin.communityRequests.reject(otherId, 'الاسم محجوز لعلامة تجارية')
+```
+
+A rejection reason is required, not optional — the requester is shown it, and "rejected" with no
+explanation generates a support ticket every time. Approving an already-decided request fails
+rather than creating a second community: the decision is what is idempotent, not the click.
+
+## Per-member permissions
+
+Not every member should be able to edit or moderate. A member's abilities come from their role,
+plus individual grants and revocations on top of it:
+
+```ts
+const perms = await gurb.members.getPermissions('mem_2')
+// { role: 'MEMBER', effective: ['CREATE_POST', 'UPLOAD_MEDIA'], granted: [], revoked: [] }
+
+// Let one member run events without making them a moderator
+await gurb.members.updatePermissions('mem_2', { grant: ['CREATE_EVENT'] })
+
+// Or take something away that the role would otherwise give
+await gurb.members.updatePermissions('mem_2', { revoke: ['CREATE_POST'] })
+
+await gurb.members.setRole('mem_2', 'MODERATOR')
+```
+
+Grants and revocations travel in **one** request. Two calls cannot be made atomic from outside,
+and a member briefly holding a permission you meant to remove is a real window, not a theoretical
+one. Sending the same permission in both lists is rejected rather than silently resolved — there
+is no correct guess at what was meant.
+
+`CommunityRole` is `ADMIN | MODERATOR | MEMBER`. `SUPER_ADMIN` is deliberately absent: it is
+platform-level, not a community membership, and no API call may ever grant it. Leaving it out of
+the type means there is no way to ask for it.
+
+## Bulk members
+
+```ts
+const result = await gurb.members.bulkUpsert([
+  { externalUserId: 'shop-1', displayName: 'أحمد' },
+  { externalUserId: 'shop-2', displayName: 'نورة', email: 'noura@example.com' },
+  { externalUserId: 'shop-3', displayName: 'خالد', role: 'MODERATOR' },
+])
+
+result.created  // first time
+result.updated  // on a re-run — matched on externalUserId, so this is a sync, not a re-import
+result.failed   // [{ index: 1, externalUserId: 'shop-2', code: 'VALIDATION_ERROR', message: '…' }]
+```
+
+**Row failures do not throw.** One bad email in a list of 500 must not discard the other 499, so
+`failed` being empty is the only proof that everything landed. Each failure carries the `index`
+from the array you sent, so you can map it back to its input.
+
+Up to 500 per call. Longer lists are rejected locally rather than sent — a request that large is
+likely to die at a proxy timeout with no way to know which half landed. A duplicate id inside one
+batch is rejected too: it would race against itself server-side and the winner would be arbitrary.
+
 ## Errors
 
 Everything throws `GurbApiError` with a stable `code`:

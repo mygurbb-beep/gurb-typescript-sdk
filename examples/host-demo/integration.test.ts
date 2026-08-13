@@ -1,6 +1,6 @@
 import type { Server } from 'node:http'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createGurbClient, GurbApiError } from '../../packages/server/src/index.js'
+import { createGurbAdminClient, createGurbClient, GurbApiError } from '../../packages/server/src/index.js'
 // @ts-expect-error — the mock is plain JS on purpose; it stands in for a server
 // written in another language entirely.
 import { createMockGurb } from './mock-gurb.mjs'
@@ -118,5 +118,220 @@ describe('the framed page', () => {
 
     const html = await (await fetch(seenByServer)).text()
     expect(html).toContain('location.hash')
+  })
+})
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Administration, approval, permissions and bulk membership
+// ═════════════════════════════════════════════════════════════════════════════
+
+const ADMIN_KEY = 'gurb_sa_a1b2c3d4e5f6_' + 'd'.repeat(43)
+
+const admin = () => createGurbAdminClient({ adminKey: ADMIN_KEY, baseUrl })
+const community = () => createGurbClient({ apiKey: KEY, baseUrl })
+
+/**
+ * The rule that matters most: neither credential may act on the other's
+ * surface. A client-side check is a convenience; these prove the server refuses
+ * even when the client is bypassed.
+ */
+describe('credential boundaries, enforced by the server', () => {
+  it('refuses a community key on an admin route', async () => {
+    const response = await fetch(`${baseUrl}/api/admin/sdk/communities`, {
+      headers: { 'X-Api-Key': KEY },
+    })
+
+    expect(response.status).toBe(403)
+    const body = await response.json()
+    expect(body.error).toBe('FORBIDDEN_SURFACE')
+    // The message names the actual problem instead of a bare 403, which an
+    // integrator would otherwise read as "my key is wrong".
+    expect(body.message).toMatch(/cannot perform platform administration/)
+  })
+
+  it('refuses a super-admin key on a community route', async () => {
+    const response = await fetch(`${baseUrl}/api/sdk/community`, {
+      headers: { 'X-Api-Key': ADMIN_KEY },
+    })
+
+    expect(response.status).toBe(403)
+    expect((await response.json()).message).toMatch(/no community context/)
+  })
+})
+
+describe('creating a community through approval', () => {
+  it('files a request, approves it, and creates the community', async () => {
+    const request = await community().community.requestCreation({
+      name: 'مجتمع الحرفيين',
+      slug: 'crafts',
+      description: 'للحرفيين وأصحاب المهن اليدوية',
+    })
+
+    expect(request.status).toBe('PENDING')
+    expect(request.communityId).toBeNull()
+
+    const pending = await admin().communityRequests.list({ status: 'PENDING' })
+    expect(pending.items.map((r) => r.id)).toContain(request.id)
+
+    const approved = await admin().communityRequests.approve(request.id)
+    expect(approved.status).toBe('APPROVED')
+    expect(approved.communityId).toMatch(/^cmt_/)
+    expect(approved.decidedAt).not.toBeNull()
+
+    const all = await admin().communities.list({ limit: 100 })
+    expect(all.items.map((c) => c.slug)).toContain('crafts')
+  })
+
+  it('refuses to approve twice, so a double click cannot make two communities', async () => {
+    const request = await community().community.requestCreation({ name: 'مرة', slug: 'once' })
+    await admin().communityRequests.approve(request.id)
+
+    await expect(admin().communityRequests.approve(request.id)).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    })
+  })
+
+  it('records the reason on a rejection so the requester learns why', async () => {
+    const request = await community().community.requestCreation({ name: 'مرفوض', slug: 'nope' })
+
+    const rejected = await admin().communityRequests.reject(request.id, 'الاسم محجوز لعلامة تجارية')
+
+    expect(rejected.status).toBe('REJECTED')
+    expect(rejected.rejectionReason).toBe('الاسم محجوز لعلامة تجارية')
+    expect(rejected.communityId).toBeNull()
+  })
+
+  it('refuses a slug that is already taken', async () => {
+    await expect(
+      community().community.requestCreation({ name: 'تكرار', slug: 'demo' }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+  })
+})
+
+describe('minting community keys', () => {
+  it('returns the plaintext once, and that key actually works', async () => {
+    const minted = await admin().apiKeys.create({ communityId: 'cmt_demo', name: 'zapier' })
+
+    expect(minted.key).toMatch(/^gurb_[a-f0-9]{12}_/)
+    expect(minted.scopes).toEqual(['read'])
+
+    // The real proof: the minted string is a working community credential, and
+    // it is not accepted anywhere the admin key belongs.
+    const minor = createGurbClient({ apiKey: minted.key, baseUrl })
+    await expect(minor.community.get()).resolves.toMatchObject({ slug: 'demo' })
+
+    expect(() => createGurbAdminClient({ adminKey: minted.key, baseUrl })).toThrow(
+      /community API key, not a super-admin key/,
+    )
+  })
+
+  it('lists keys without ever returning a secret again', async () => {
+    await admin().apiKeys.create({ communityId: 'cmt_demo', name: 'reporting' })
+
+    const keys = await admin().apiKeys.list({ communityId: 'cmt_demo', limit: 100 })
+
+    expect(keys.items.length).toBeGreaterThan(0)
+    for (const key of keys.items) {
+      expect(key).not.toHaveProperty('key')
+    }
+  })
+
+  it('revokes a key', async () => {
+    const minted = await admin().apiKeys.create({ communityId: 'cmt_demo', name: 'temporary' })
+    const revoked = await admin().apiKeys.revoke(minted.id)
+    expect(revoked.revokedAt).not.toBeNull()
+  })
+})
+
+describe('per-member permissions', () => {
+  it('derives what a member can do from their role', async () => {
+    const memberPerms = await community().members.getPermissions('mem_2') // MEMBER
+
+    expect(memberPerms.role).toBe('MEMBER')
+    expect(memberPerms.effective).toContain('CREATE_POST')
+    // The whole point: not every member may edit or moderate.
+    expect(memberPerms.effective).not.toContain('EDIT_ANY_POST')
+    expect(memberPerms.effective).not.toContain('MODERATE_CONTENT')
+  })
+
+  it('gives an admin the moderation permissions a plain member lacks', async () => {
+    const adminPerms = await community().members.getPermissions('mem_1') // ADMIN
+
+    expect(adminPerms.effective).toContain('MODERATE_CONTENT')
+    expect(adminPerms.effective).toContain('ASSIGN_ROLES')
+  })
+
+  it('grants one extra permission without changing the role', async () => {
+    const updated = await community().members.updatePermissions('mem_3', { grant: ['CREATE_EVENT'] })
+
+    expect(updated.role).toBe('MEMBER')
+    expect(updated.granted).toContain('CREATE_EVENT')
+    expect(updated.effective).toContain('CREATE_EVENT')
+  })
+
+  it('revokes a permission the role would otherwise grant', async () => {
+    const updated = await community().members.updatePermissions('mem_3', { revoke: ['CREATE_POST'] })
+
+    expect(updated.revoked).toContain('CREATE_POST')
+    expect(updated.effective).not.toContain('CREATE_POST')
+  })
+
+  it('rejects an unknown permission rather than storing a typo forever', async () => {
+    await expect(
+      community().members.updatePermissions('mem_2', { grant: ['CREATE_POSTS'] }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+  })
+
+  it('changes a role and the effective set follows', async () => {
+    const promoted = await community().members.setRole('mem_2', 'MODERATOR')
+    expect(promoted.role).toBe('MODERATOR')
+
+    const perms = await community().members.getPermissions('mem_2')
+    expect(perms.effective).toContain('MODERATE_CONTENT')
+  })
+})
+
+describe('bulk membership', () => {
+  it('creates many, then updates the same list instead of duplicating it', async () => {
+    const rows = [
+      { externalUserId: 'bulk-1', displayName: 'أحمد' },
+      { externalUserId: 'bulk-2', displayName: 'نورة', email: 'noura@example.com' },
+      { externalUserId: 'bulk-3', displayName: 'خالد', role: 'MODERATOR' as const },
+    ]
+
+    const first = await community().members.bulkUpsert(rows)
+    expect(first.created).toHaveLength(3)
+    expect(first.failed).toHaveLength(0)
+    expect(first.created.find((m) => m.displayName === 'خالد')?.role).toBe('MODERATOR')
+
+    // Re-sending is a sync, not a duplicate import — this is what makes it
+    // safe to run nightly against your own user table.
+    const second = await community().members.bulkUpsert(rows)
+    expect(second.created).toHaveLength(0)
+    expect(second.updated).toHaveLength(3)
+  })
+
+  it('keeps the good rows when one is bad, and says which index failed', async () => {
+    const result = await community().members.bulkUpsert([
+      { externalUserId: 'ok-1', displayName: 'سالم' },
+      { externalUserId: 'bad-1', displayName: 'ريم', email: 'not-an-email' },
+      { externalUserId: 'ok-2', displayName: 'هند' },
+    ])
+
+    expect(result.created).toHaveLength(2)
+    expect(result.failed).toHaveLength(1)
+    // Mapping a failure back to its input is the difference between a usable
+    // error and "something in your 500 rows was wrong".
+    expect(result.failed[0]).toMatchObject({ index: 1, externalUserId: 'bad-1', code: 'VALIDATION_ERROR' })
+    expect(result.total).toBe(3)
+  })
+
+  it('does not throw when some rows fail — 499 good rows must still land', async () => {
+    await expect(
+      community().members.bulkUpsert([
+        { externalUserId: 'fine', displayName: 'مها' },
+        { externalUserId: '', displayName: 'بلا معرّف' },
+      ]),
+    ).resolves.toMatchObject({ failed: [{ index: 1 }] })
   })
 })

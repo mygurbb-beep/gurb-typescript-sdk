@@ -167,3 +167,164 @@ export interface GurbErrorBody {
   message?: string
   requestId?: string
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Administration, membership and permissions
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * A platform-level super-admin key. Always `gurb_sa_<keyId>_<secret>`.
+ *
+ * The `sa_` segment is not decoration. A community key damages one community;
+ * this one can create communities, mint other keys, and act across tenants — so
+ * it must be impossible to confuse the two by looking at them, by parsing them,
+ * or by passing one where the other belongs. `GurbClient` rejects this shape and
+ * `GurbAdminClient` rejects the community shape.
+ */
+export type GurbAdminKey = string
+
+// ─── Roles and permissions ───────────────────────────────────────────────────
+
+/**
+ * A member's role inside one community.
+ *
+ * `SUPER_ADMIN` is deliberately absent: it is platform-level, it is not a
+ * community membership, and no API call may ever grant it. Leaving it out of
+ * the type means there is no way to ask for it.
+ */
+export type CommunityRole = 'ADMIN' | 'MODERATOR' | 'MEMBER'
+
+/**
+ * Permissions the SDK knows by name.
+ *
+ * The platform's catalogue is larger and grows over time. `Permission` below
+ * stays assignable from any string on purpose: a new permission added to the
+ * platform must not fail to compile here, and an SDK upgrade must not be a
+ * prerequisite for using one. These constants exist for autocomplete and for
+ * catching typos in the common cases, not as a closed set.
+ */
+export const KNOWN_PERMISSIONS = [
+  // Content
+  'CREATE_POST', 'EDIT_ANY_POST', 'DELETE_ANY_POST',
+  'CREATE_EVENT', 'EDIT_ANY_EVENT', 'DELETE_ANY_EVENT',
+  'CREATE_BLOG', 'EDIT_ANY_BLOG', 'DELETE_ANY_BLOG',
+  'CREATE_ALBUM', 'EDIT_ANY_ALBUM', 'DELETE_ANY_ALBUM',
+  'UPLOAD_MEDIA',
+  // Membership
+  'INVITE_MEMBERS', 'REMOVE_MEMBERS', 'APPROVE_JOIN_REQUESTS',
+  'ASSIGN_ROLES', 'MANAGE_PERMISSIONS',
+  // Moderation
+  'MODERATE_CONTENT', 'RESTRICT_MEMBERS', 'VIEW_REPORTS',
+  // Community
+  'EDIT_COMMUNITY_SETTINGS', 'MANAGE_API_KEYS', 'VIEW_ANALYTICS',
+] as const
+
+export type KnownPermission = (typeof KNOWN_PERMISSIONS)[number]
+
+/** A known permission, or any newer one the platform has added since. */
+export type Permission = KnownPermission | (string & {})
+
+export interface MemberPermissions {
+  memberId: string
+  userId: string
+  role: CommunityRole
+  /** Everything in force: what the role grants, plus individual grants. */
+  effective: Permission[]
+  /** Granted to this member specifically, on top of the role. */
+  granted: Permission[]
+  /** Taken away from this member specifically, despite the role. */
+  revoked: Permission[]
+}
+
+// ─── Community creation and approval ─────────────────────────────────────────
+
+export type CommunityRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export interface CreateCommunityInput {
+  name: string
+  slug: string
+  description?: string
+  type?: 'PUBLIC' | 'PRIVATE'
+  /** The `User.id` who will own it. Defaults to the requester. */
+  ownerUserId?: string
+}
+
+export interface CommunityRequest {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+  status: CommunityRequestStatus
+  requestedByUserId: string
+  /** Present once a decision has been made. */
+  decidedByUserId: string | null
+  decidedAt: string | null
+  /** Why it was rejected. Always null while PENDING or once APPROVED. */
+  rejectionReason: string | null
+  /** The community this became. Null until approved. */
+  communityId: string | null
+  createdAt: string
+}
+
+// ─── API key management (super admin) ────────────────────────────────────────
+
+export interface ApiKeySummary {
+  id: string
+  communityId: string
+  name: string
+  scopes: ('read' | 'write')[]
+  lastUsedAt: string | null
+  revokedAt: string | null
+  createdAt: string
+}
+
+/**
+ * The only response that ever carries a usable key.
+ *
+ * There is no read-back route: if it is lost, mint another and revoke this one.
+ * Storing it anywhere retrievable would turn a database read into a full
+ * community compromise.
+ */
+export interface ApiKeyWithSecret extends ApiKeySummary {
+  /** Shown exactly once. */
+  key: string
+}
+
+// ─── Bulk membership ─────────────────────────────────────────────────────────
+
+export interface BulkMemberInput {
+  /** Your own id for this person. Stable forever — it is the join key. */
+  externalUserId: string
+  displayName: string
+  email?: string
+  /**
+   * Defaults to MEMBER. A key can never assign a role above its own authority,
+   * and no key can assign a platform role.
+   */
+  role?: CommunityRole
+}
+
+export interface BulkFailure {
+  /** Index in the array you sent, so you can map a failure back to its input. */
+  index: number
+  externalUserId: string
+  code: GurbErrorCode
+  message: string
+}
+
+/**
+ * The result of a partially-successful batch.
+ *
+ * Bulk operations do not throw on individual failures: one bad email address in
+ * a list of 500 must not discard the other 499. Check `failed` — an empty array
+ * is the only proof that everything landed.
+ */
+export interface BulkMemberResult {
+  created: Member[]
+  updated: Member[]
+  failed: BulkFailure[]
+  total: number
+}
+
+/** The most members one call may carry. Larger lists must be chunked. */
+export const BULK_MEMBER_LIMIT = 500
