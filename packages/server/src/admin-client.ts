@@ -64,8 +64,33 @@ export class GurbAdminClient {
      * you would treat a database password: one holder, injected from a secret
      * store, never in a repository, rotated on staff changes.
      */
-    create: (input: CreateCommunityInput): Promise<Community> =>
-      this.#http.request('POST', 'admin/sdk/communities', { body: input }),
+    create: (input: CreateCommunityInput): Promise<Community> => {
+      const name = input.name?.trim() ?? ''
+      if (!name || name.length > 100) {
+        return Promise.reject(new GurbApiError({
+          message: 'A community name is required and must be at most 100 characters.',
+          code: 'VALIDATION_ERROR',
+          status: 0,
+        }))
+      }
+
+      // Checked here so a malformed slug is a local error naming the rule,
+      // rather than a round trip that comes back 400 saying "invalid slug".
+      if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(input.slug ?? '') || input.slug.length < 3 || input.slug.length > 50) {
+        return Promise.reject(new GurbApiError({
+          message:
+            'Invalid slug. Use lowercase letters, digits and hyphens only, 3-50 characters, with no leading, trailing or repeated hyphen.',
+          code: 'VALIDATION_ERROR',
+          status: 0,
+        }))
+      }
+
+      // Exactly two fields on the wire. Anything else would be a choice the
+      // endpoint does not honour.
+      return this.#http.request('POST', 'admin/sdk/communities', {
+        body: { name, slug: input.slug },
+      })
+    },
   }
 
   // ─── The approval queue ────────────────────────────────────────────────────

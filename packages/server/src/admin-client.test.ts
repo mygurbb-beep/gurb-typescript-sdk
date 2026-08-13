@@ -78,3 +78,65 @@ describe('admin routes', () => {
     expect(calls).toHaveLength(0)
   })
 })
+
+describe('creating a community takes two fields and nothing else', () => {
+  const badSlugs: Array<[string, string]> = [
+    ['UPPER', 'uppercase'],
+    ['ab', 'too short'],
+    ['a'.repeat(51), 'too long'],
+    ['-leading', 'leading hyphen'],
+    ['trailing-', 'trailing hyphen'],
+    ['double--hyphen', 'repeated hyphen'],
+    ['has space', 'a space'],
+    ['عربي', 'non-latin'],
+  ]
+
+  it.each(badSlugs)('rejects %s (%s) without making a request', async (slug) => {
+    const { fn, calls } = stubFetch(200, {})
+    const admin = createGurbAdminClient({ adminKey: ADMIN_KEY, fetch: fn })
+
+    await expect(admin.communities.create({ name: 'مجتمع', slug })).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+      status: 0,
+    })
+    // A malformed slug should cost nothing — no round trip, and a message that
+    // names the rule rather than a server-side "invalid slug".
+    expect(calls).toHaveLength(0)
+  })
+
+  it('rejects an empty or over-long name without making a request', async () => {
+    const { fn, calls } = stubFetch(200, {})
+    const admin = createGurbAdminClient({ adminKey: ADMIN_KEY, fetch: fn })
+
+    await expect(admin.communities.create({ name: '   ', slug: 'valid-slug' })).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    })
+    await expect(
+      admin.communities.create({ name: 'x'.repeat(101), slug: 'valid-slug' }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+    expect(calls).toHaveLength(0)
+  })
+
+  it('sends exactly name and slug, and trims the name', async () => {
+    const { fn, calls } = stubFetch(201, { data: { id: 'cmt_1', slug: 'crafts' } })
+    const admin = createGurbAdminClient({ adminKey: ADMIN_KEY, baseUrl: 'https://x.test', fetch: fn })
+
+    await admin.communities.create({ name: '  مجتمع الحرفيين  ', slug: 'crafts' })
+
+    expect(calls[0]!.url).toBe('https://x.test/api/admin/sdk/communities')
+    // Nothing else on the wire. No description, no type, no ownerUserId — the
+    // server decides those, and offering them would imply it does not.
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
+      name: 'مجتمع الحرفيين',
+      slug: 'crafts',
+    })
+  })
+
+  it('accepts slugs at both ends of the length rule', async () => {
+    const { fn } = stubFetch(201, { data: {} })
+    const admin = createGurbAdminClient({ adminKey: ADMIN_KEY, fetch: fn })
+
+    await expect(admin.communities.create({ name: 'n', slug: 'abc' })).resolves.toBeDefined()
+    await expect(admin.communities.create({ name: 'n', slug: 'a'.repeat(50) })).resolves.toBeDefined()
+  })
+})

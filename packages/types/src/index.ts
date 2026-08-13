@@ -295,13 +295,31 @@ export interface MemberPermissions {
 
 export type CommunityRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
+/**
+ * Everything needed to create a community — and deliberately nothing else.
+ *
+ * There is no `description`, no `type`, no `ownerUserId`. Each was removed
+ * rather than accepted-and-ignored, because a parameter that is silently
+ * discarded is worse than one that never existed: it reads as a choice the
+ * caller made, and it is not.
+ *
+ * The server decides the rest. Visibility defaults to PRIVATE — a community
+ * that appears publicly because someone omitted a field is a leak, not a
+ * convenience — and the owner is taken from the credential, so the audit trail
+ * names whoever actually performed the action rather than whoever was named in
+ * a body.
+ */
 export interface CreateCommunityInput {
+  /** The human-facing name. Arabic is expected; 1–100 characters. */
   name: string
+  /**
+   * The latin identifier used in URLs: lowercase letters, digits and hyphens,
+   * 3–50 characters, no leading, trailing or repeated hyphen.
+   *
+   * Validated before the request leaves, so a malformed slug is a local error
+   * with a message naming the rule rather than a round trip and a 400.
+   */
   slug: string
-  description?: string
-  type?: 'PUBLIC' | 'PRIVATE'
-  /** The `User.id` who will own it. Defaults to the requester. */
-  ownerUserId?: string
 }
 
 export interface CommunityRequest {
