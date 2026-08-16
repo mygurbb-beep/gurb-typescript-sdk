@@ -85,10 +85,33 @@ export class GurbAdminClient {
         }))
       }
 
-      // Exactly two fields on the wire. Anything else would be a choice the
-      // endpoint does not honour.
+      if (input.owner) {
+        const { provider, externalUserId, email, emailVerified } = input.owner
+        if (!provider || !externalUserId || !email) {
+          return Promise.reject(new GurbApiError({
+            message: 'An external owner needs provider, externalUserId and email.',
+            code: 'VALIDATION_ERROR',
+            status: 0,
+          }))
+        }
+        if (typeof emailVerified !== 'boolean') {
+          // Not defaulted on purpose. `emailVerified` decides whether an
+          // incoming identity may join an account that already exists, so an
+          // absent claim must be sent as the absence it is — never assumed true
+          // because it was easier to leave out.
+          return Promise.reject(new GurbApiError({
+            message:
+              'owner.emailVerified must be the provider\'s own claim, sent explicitly as true or false.',
+            code: 'VALIDATION_ERROR',
+            status: 0,
+          }))
+        }
+      }
+
+      // Two fields, plus the owner when one is named. Nothing else — anything
+      // more would be a choice the endpoint does not honour.
       return this.#http.request('POST', 'admin/sdk/communities', {
-        body: { name, slug: input.slug },
+        body: { name, slug: input.slug, ...(input.owner ? { owner: input.owner } : {}) },
       })
     },
   }

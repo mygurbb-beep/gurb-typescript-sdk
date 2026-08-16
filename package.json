@@ -3,11 +3,13 @@
   "private": true,
   "version": "0.0.0",
   "description": "Official TypeScript SDK for the Gurb community platform",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "test": "vitest run",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc --noEmit -p packages/types && tsc --noEmit -p packages/server && tsc --noEmit -p packages/embed"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
@@ -16,5 +18,7 @@
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

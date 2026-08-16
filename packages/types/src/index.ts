@@ -47,6 +47,25 @@ export interface Community {
   type: 'PUBLIC' | 'PRIVATE'
   memberCount: number
   createdAt: string
+  /**
+   * Present only on the response to a CREATE that carried an `owner`.
+   *
+   * The three outcomes are operationally different and you cannot tell them
+   * apart from the outside, so branch on this rather than assuming:
+   *
+   *   CREATED — a brand-new, passwordless Gurb account now exists. Its owner has
+   *             no way to sign in yet; send them through your provider, or have
+   *             them use Gurb's password-reset flow.
+   *   LINKED  — an account that ALREADY had a history is now reachable through
+   *             your provider. Gurb has e-mailed its owner to tell them so. If
+   *             you did not expect this, you asserted an address that belonged
+   *             to somebody who was already here.
+   *   MATCHED — the identity was already bound. Nothing changed.
+   */
+  owner?: {
+    userId: string
+    outcome: 'CALLER' | 'MATCHED' | 'CREATED' | 'LINKED'
+  }
 }
 
 export interface Author {
@@ -309,9 +328,49 @@ export type CommunityRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
  * names whoever actually performed the action rather than whoever was named in
  * a body.
  */
+/**
+ * An identity asserted by an IdP you have already registered with Gurb — Okta,
+ * Entra, or any other configured `OAuthProvider`.
+ *
+ * BINDING IS ON `(provider, externalUserId)`, NEVER ON EMAIL. The provider's
+ * subject is stable and cannot be claimed by someone else; an e-mail address
+ * can. Matching on email alone would let whoever holds the platform key claim
+ * any address and reach the account behind it.
+ *
+ * Email still matters — it is how an incoming identity is joined to an account
+ * a person already had — but only under conditions the server enforces:
+ * both sides' addresses verified, never a super admin, always audited, and the
+ * account owner is e-mailed when it happens.
+ */
+export interface ExternalOwner {
+  /** The `slug` of an OAuthProvider already registered and active in Gurb. */
+  provider: string
+  /** The provider's own stable id for this person — Okta's `sub`. */
+  externalUserId: string
+  email: string
+  /**
+   * Whether the PROVIDER asserts this address is verified.
+   *
+   * Send the provider's own claim, never `true` for convenience. It is one half
+   * of the test that decides whether an incoming identity may join an account
+   * that already exists.
+   */
+  emailVerified: boolean
+  firstName?: string
+  familyName?: string
+}
+
 export interface CreateCommunityInput {
   /** The human-facing name. Arabic is expected; 1–100 characters. */
   name: string
+  /**
+   * Provision the owner from an IdP instead of using the calling credential.
+   *
+   * Omit it and the community is owned by the super admin whose key made the
+   * call. Supply it and Gurb resolves — or creates — the account behind that
+   * identity and makes them the owner, in the same operation.
+   */
+  owner?: ExternalOwner
   /**
    * The latin identifier used in URLs: lowercase letters, digits and hyphens,
    * 3–50 characters, no leading, trailing or repeated hyphen.

@@ -1,5 +1,101 @@
 # Changelog
 
+## 0.5.0
+
+The server side of bulk membership and embed sessions, and a way to create the
+account that owns a community.
+
+### Added
+
+- **`admin.communities.create()` accepts an optional `owner`.** A person your
+  identity provider vouches for founds the community, instead of the credential
+  that made the call. This is what makes "sign in with Okta, get a community"
+  one call instead of an impossible two — there is no public endpoint that mints
+  a Gurb account from an e-mail, and there should not be.
+
+  The response carries `owner: { userId, outcome }`. **Branch on `outcome`:**
+  `CREATED` means a new passwordless account exists and its owner cannot sign in
+  by any route you have not arranged; `LINKED` means an account that already had
+  a history is now reachable through your provider, and Gurb has e-mailed its
+  owner; `MATCHED` means nothing changed.
+
+- **`members.bulkUpsert()` and `embed.createSession()` now have endpoints
+  behind them.** Both were published in 0.2.0 against a server that did not
+  implement them. The client shapes are unchanged, so no code needs editing —
+  the calls simply stop 404ing.
+
+### The identity rule, stated once
+
+Both new paths bind a person on **(namespace, externalUserId)** and never on
+their e-mail address. An e-mail is a label: editable by its owner and recycled by
+employers, so keying on it would hand a leaver's account to their replacement.
+Keep `externalUserId` stable forever; reusing one for a different human hands
+them the first person's account.
+
+An assertion may only attach to an account that ALREADY exists when it comes
+from a registered, active provider that you named explicitly — which means only
+`admin.communities.create({ owner })`. `bulkUpsert` and `createSession` carry no
+provider field, so the authority behind them is your API key alone; a key is not
+an e-mail verifier, and those two paths can never link to a pre-existing
+account. A row whose e-mail already belongs to somebody comes back in `failed`.
+
+### Behaviour worth knowing before you integrate
+
+- **`bulkUpsert` applies `role` on creation only.** A sync that omits `role`
+  would otherwise demote every moderator to MEMBER on its first run, so an
+  absent role and `MEMBER` are different things. Sending `role` for an existing
+  member is a no-op; the response returns their current role.
+- **Banned members are refused, not reinstated** — `failed` with `CONFLICT`. A
+  ban is this community's decision about a person and outranks your directory.
+- **Members who LEFT are re-admitted.** Note that removal by an admin also
+  records `LEFT`, so a removed member returns if your directory still lists
+  them. Ban rather than remove when it must stick.
+- **No webhook fires for bulk-imported members.** `member.joined` names one
+  member and there is no batch event yet, so emitting per row would be a
+  notification storm. An integrator mirroring membership will not see these
+  until a batch event exists.
+- **Bulk-imported members receive no notifications and no auto-assigned tasks or
+  awards.** Deliberate: 500 imports must not mean 500 pushes.
+- **An embed token is not a JWT.** It is opaque, single-use, ~120s, and asserts
+  nothing — a leaked copy reveals no user, community or name. Put it in the URL
+  **fragment**, never the query string.
+
+## 0.4.0
+
+Community creation narrowed to what the endpoint actually honours.
+
+### Changed
+
+- **BREAKING — `admin.communities.create()` takes a name and a slug, nothing else.**
+
+  ```ts
+  // before
+  await admin.communities.create({ name: 'مجتمع', slug: 'club', type: 'PUBLIC', description: '…' })
+  // after
+  await admin.communities.create({ name: 'مجتمع', slug: 'club' })
+  ```
+
+  `description`, `type` and `ownerUserId` were removed rather than accepted and
+  ignored. Visibility is decided server-side (always `PRIVATE`; an admin changes
+  it in the dashboard when they mean to), and the owner comes from the credential
+  so the audit trail names whoever performed the action. A caller who passed
+  `type: 'PUBLIC'` and received a private community had been lied to by an API
+  that looked like it was listening — an ignored field in a request body is a
+  promise nobody is keeping.
+
+- The slug rule is now enforced locally, before any HTTP call: 3–50 characters of
+  lowercase letters, digits and hyphens, with no leading, trailing or repeated
+  hyphen. A slug that is already taken still comes back from the server as a 400
+  `VALIDATION_ERROR` — slugs are unique platform-wide, so that is a normal
+  outcome, not a bug.
+
+### Fixed
+
+- `npm run typecheck` now actually type-checks. It ran `tsc -b` against a root
+  `tsconfig.json` that was never committed, so it failed immediately on a fresh
+  clone with TS5083 and had never verified anything. It now checks each package
+  in turn.
+
 ## 0.3.0
 
 Every content section the platform serves.
