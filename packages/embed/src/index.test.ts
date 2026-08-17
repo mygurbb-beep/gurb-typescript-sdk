@@ -20,7 +20,7 @@ describe('mounting', () => {
   it('puts the token in the fragment so it never reaches a server log', () => {
     const { iframe } = mount({ target: '#host', slug: 'demo', section: 'tweets', token: 'et_abc', baseUrl: BASE })
 
-    expect(iframe.src).toBe('https://gurb.test/embed/demo/tweets#t=et_abc')
+    expect(iframe.src).toBe('https://gurb.test/embed#token=et_abc&section=tweets')
     expect(new URL(iframe.src).search).toBe('')
   })
 
@@ -46,7 +46,7 @@ describe('mounting', () => {
       baseUrl: BASE,
     })
 
-    await vi.waitFor(() => expect(iframe.src).toContain('#t=et_late'))
+    await vi.waitFor(() => expect(iframe.src).toContain('#token=et_late'))
   })
 
   it('throws when the target does not exist', () => {
@@ -112,5 +112,62 @@ describe('destroy', () => {
 
     expect(document.querySelectorAll('iframe')).toHaveLength(0)
     expect(onReady).not.toHaveBeenCalled()
+  })
+})
+
+describe('the URL the frame is actually pointed at', () => {
+  /**
+   * THE TEST THAT WAS MISSING, and whose absence is why the embed never worked.
+   *
+   * Both sides of this handshake had passing suites. The loader asserted it
+   * built a URL; the Next.js page asserted it could read a fragment. Neither
+   * asserted they agreed, so the loader requested `/embed/{slug}/{section}#t=`
+   * against a page that lives at `/embed` and reads `token` — a 404 followed by
+   * an unreadable token, with green tests on both sides.
+   *
+   * These assertions are the CONTRACT with app/embed/page.tsx in the Gurb web
+   * app. Changing either one requires changing the other in the same commit.
+   */
+  const TOKEN = 'gurbe_' + 'x'.repeat(43)
+
+  function srcFor(section: string): string {
+    document.body.innerHTML = '<div id="host"></div>'
+    mount({
+      target: '#host',
+      slug: 'my-club',
+      section: section as never,
+      token: TOKEN,
+      baseUrl: 'https://gurb.test',
+    })
+    return document.querySelector('iframe')!.src
+  }
+
+  it('points at /embed — one path, no slug and no section segment', () => {
+    // The slug is deliberately gone: the token's server-side envelope already
+    // pins the communityId, so a path segment could only agree or contradict.
+    expect(srcFor('community').split('#')[0]).toBe('https://gurb.test/embed')
+  })
+
+  it('names the token `token`, which is the key the page reads', () => {
+    const fragment = new URLSearchParams(srcFor('community').split('#')[1])
+    expect(fragment.get('token')).toBe(TOKEN)
+  })
+
+  it('omits `section` for the whole community, because absence means home', () => {
+    const fragment = new URLSearchParams(srcFor('community').split('#')[1])
+    expect(fragment.has('section')).toBe(false)
+  })
+
+  it('carries `section` for a single pane', () => {
+    const fragment = new URLSearchParams(srcFor('tweets').split('#')[1])
+    expect(fragment.get('section')).toBe('tweets')
+  })
+
+  it('keeps the token in the fragment and out of the query string', () => {
+    // A query string reaches the server: nginx access logs, Referer headers.
+    // A fragment never does. That is the entire reason for this shape.
+    const src = srcFor('community')
+    expect(src).not.toContain('?')
+    expect(src.split('#')[1]).toContain('token=')
   })
 })

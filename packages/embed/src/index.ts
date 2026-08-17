@@ -6,7 +6,7 @@
  * token minted by YOUR backend via `@gurb/server`. There is no `apiKey` option
  * to fill in by mistake.
  */
-import type { EmbedSection } from '@gurb/api-types'
+import { defaultEmbedHeight, type EmbedSection } from '@gurb/api-types'
 
 export type { EmbedSection }
 
@@ -28,7 +28,15 @@ export interface MountOptions {
   fetchToken?: () => Promise<string>
   /** Gurb origin. Override only for staging. */
   baseUrl?: string
-  /** Initial height before the frame reports its own. Default 600. */
+  /**
+   * Initial height before the frame reports its own.
+   *
+   * Defaults PER SHAPE — 900 for a whole community, 600 for a single pane — so
+   * that "unspecified" follows what is being embedded. A whole community at
+   * 600px shows a navigation bar and little else in the moment before
+   * auto-resize lands, and that moment is when someone decides the integration
+   * is broken. Passing a number still wins.
+   */
   initialHeight?: number
   /** Let the frame drive its own height. Default true. */
   autoResize?: boolean
@@ -85,7 +93,7 @@ export function mount(options: MountOptions): EmbedHandle {
     slug,
     section,
     baseUrl = DEFAULT_BASE_URL,
-    initialHeight = 600,
+    initialHeight = defaultEmbedHeight(section),
     autoResize = true,
   } = options
 
@@ -134,9 +142,33 @@ export function mount(options: MountOptions): EmbedHandle {
 
   const applyToken = (token: string): void => {
     assertNotASecret(token)
-    // Fragment, not query string: fragments are never sent to the server, so
-    // the token stays out of access logs and Referer headers.
-    iframe.src = `${baseUrl.replace(/\/+$/, '')}/embed/${encodeURIComponent(slug)}/${section}#t=${encodeURIComponent(token)}`
+
+    /**
+     * ONE path, and everything else in the fragment.
+     *
+     * This used to be `/embed/{slug}/{section}#t=…`, and it did not work: the
+     * page that answers the handshake lives at `/embed` and reads `token`, so
+     * the loader was requesting a route that does not exist and naming the
+     * token with a key nothing reads. Both halves had passing tests; neither
+     * suite crossed the boundary between them.
+     *
+     * THE SLUG IS GONE, and that is a simplification rather than a workaround.
+     * The token's server-side envelope already carries the communityId — it was
+     * pinned when the host minted the session — so the community is determined
+     * by the credential, not by a path segment. Passing a slug alongside could
+     * only ever agree with the token or contradict it, and there is no useful
+     * behaviour for the contradiction.
+     *
+     * Fragment, not query string: fragments are never sent to the server, so
+     * the token stays out of access logs and Referer headers. `section` rides
+     * along for the same reason it costs nothing to keep it there.
+     */
+    const fragment = new URLSearchParams({ token })
+    // Omitted entirely for the whole-community frame: absence means "the
+    // community home", which is where the page sends an arriving member anyway.
+    if (section && section !== 'community') fragment.set('section', section)
+
+    iframe.src = `${baseUrl.replace(/\/+$/, '')}/embed#${fragment.toString()}`
   }
 
   if (options.token !== undefined) {

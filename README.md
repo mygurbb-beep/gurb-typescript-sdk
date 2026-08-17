@@ -6,7 +6,7 @@ Two packages, split along the one line that matters: **who is allowed to hold yo
 
 | Package | Runs in | Holds the API key | Use it for |
 |---|---|---|---|
-| `@gurb/server` | Node 20+ | yes | Reading your community's data; minting embed sessions |
+| `@gurb/server` | Node 20+ | yes | Reading and writing your community; members; minting embed sessions |
 | `@gurb/embed` | Browser | **never** | Rendering a community section inside your page |
 | `@gurb/api-types` | both | — | Shared types |
 
@@ -30,10 +30,139 @@ const feed = await gurb.tweets.list({ limit: 20 })
 The key is pinned to one community — there is no `communityId` argument anywhere, and a key
 can never read a community other than the one it was minted for.
 
-## Embed a community section in your site
+## Publish content
+
+Six sections are writable: posts, events, blogs, albums, groups, consultants, projects,
+projects-2, awards, tasks — plus comments and likes on top of them.
+
+```ts
+await gurb.tweets.create({ content: 'أهلاً بالجميع 👋' })
+await gurb.events.create({ title: 'Meetup', titleArabic: 'لقاء', startDate: iso, endDate: iso })
+await gurb.blogs.create({ title: 'Welcome', contentHtml: '<p>…</p>', status: 'PUBLISHED' })
+await gurb.groups.create({ name: 'القراءة', description: 'نادٍ', isPrivate: false, iconUrl })
+await gurb.tasks.create({ headingId: 'h1', title: 'راجع الطلبات' })
+await gurb.comments.create('tweets', 't1', { content: 'شكراً' })
+await gurb.likes.like('tweets', 't1')
+```
+
+### The permissions differ per section, and that is on purpose
+
+Every write uses **the same permission Gurb's own web app checks** for that action — never
+stricter, never looser. An admin who grants `blogs:create` in the dashboard expects it to mean
+the same thing through an integration, and any divergence would make the dashboard's
+permission screen a lie. So they cannot be unified:
+
+| Section | Create | Update | Delete |
+|---|---|---|---|
+| `tweets` | `posts:manage \| posts:create` | those, or **the author** | those, or **the author** |
+| `events` | `calendar:manage \| calendar:create` | those, or **the author** | those, or **the author** |
+| `blogs` | `blogs:manage \| blogs:create` | those, or **the author** | those, or **the author** |
+| `albums` | `albums:manage \| albums:create` | those, or **the author** | those, or **the author** |
+| `groups` | `groups:manage \| groups:create` | those + `groups:moderate`, or **the author** | `groups:manage \| groups:moderate` — **no author branch** |
+| `consultants` | `consultants:manage` | same | same — no author branch |
+| `projects` / `projects2` | `*:manage \| *:create \| *:moderate` | those + `*:edit`, or **the author** | `*:manage \| *:moderate \| *:edit`, or **the author** |
+| `awards` | `awards:manage` | same | same — no author branch |
+| `tasks` | `tasks:manage` | same | same — no author branch |
+| `comments` / `likes` | **none** | author, 15 min | author 30 min, or ADMIN/MODERATOR |
+| settings / branding / legal / sidebar / ads | — | `settings:manage \| homepage:customize` (sidebar and ads also accept `homepage:customize` / `ads:manage`) | — |
+
+**A plain member holds none of them.** `MEMBER` resolves to an *empty* permission set in Gurb —
+publishing is a capability an admin grants, not one membership confers. So a key whose owner was
+granted nothing reads everything and publishes nothing. That is correct behaviour, not a
+misconfiguration, and re-minting the key will not change it.
+
+Commenting and liking are the exception, and it is the opposite of the rule: they need **no
+permission at all**, because answering is what an ordinary member does. Membership is the whole
+gate.
+
+### Editing someone else's content
+
+Where the table says "or the author", authorship is checked **first** — and on this surface the
+author is the **key's owner**. So a key can always edit what it published, and needs
+`*:manage` / `*:moderate` for anyone else's. Expect 403s against content your key did not create.
+
+### Feature gates are not permissions
+
+Where a section is plan-gated, a community whose plan lacks the flag gets
+`403 FEATURE_NOT_AVAILABLE` on **every call in that section, reads included**. No grant fixes it —
+it is a billing question, not an admin one. `projects2` adds a second gate, `FEATURE_DISABLED`,
+meaning an admin switched the module off. They send you to different people; do not collapse them.
+
+### Uploads are not supported yet
+
+These endpoints are text and JSON only. An album is created empty, a tweet carries no attachment,
+a group's `iconUrl` is a URL string rather than a file, and there is **no** `advertisements.create`
+at all — an ad *is* its image. Uploads need storage-budget accounting this surface does not
+implement, and shipping them without it would let a community silently exceed the storage its plan
+pays for.
+
+### Two shapes that will otherwise look like bugs
+
+- **Projects take `name` and return `title`.** The column is `name`; every response calls it
+  `title`. Sending `title` sets nothing and the call fails for a missing `name`.
+- **`awards.create` defines a medal; it does not give it to anybody.** Granting writes recipient
+  rows, can name every member in one call and notifies each of them. That needs its own endpoint,
+  not a field.
+
+## Customize the community
+
+```ts
+const settings = await gurb.community.getSettings()
+
+await gurb.community.updateSettings({ pageVisibility: { news: false } })
+await gurb.community.updateBranding({ primaryColor: '#093431', city: 'الرياض' })
+await gurb.community.updateLegal({ terms: 'نص الشروط…' })
+
+await gurb.sidebar.update({ items: menu })          // PUT — replaces the whole menu
+await gurb.advertisements.update('ad1', { isActive: false })
+```
+
+⚠️ **Never read the settings and write the whole blob back.** The server merges
+`{ ...stored, ...yourPatch }` with a deep merge for `pageVisibility` and *nothing else*. Every
+other key you send replaces its stored counterpart wholesale — so a read-modify-write round trip
+overwrites `homeWidgets`, `widgetConfig` and `guestAccess` with whatever your process happened to
+be holding. The response says success. Nobody finds out until a member reports a missing menu.
+
+Two other sharp edges worth knowing before you touch them:
+
+- **`updateLegal({ terms: '' })` is a real instruction** — it restores the platform's standard
+  template. An absent field leaves the stored text alone. Conflating the two either ignores a
+  deliberate reset or wipes a founder's hand-written terms.
+- **`updateBranding({ type })` is not a flag.** PUBLIC → PRIVATE resets the guest-preview opt-in on
+  every row of every section, in the same transaction, and flipping back does **not** restore them.
+
+`sidebar.*` and `advertisements.*` are behind the `homepage_widgets` and `ads_management` plan
+features **on their reads too** — including `advertisements.listActive()`, the member-facing widget
+feed that needs no permission. That combination has already been misdiagnosed in production as a
+missing permission; it is an entitlement, and only a plan change fixes it.
+
+## Embed the community in your site
 
 Three steps, and the middle one is the whole security model: **your backend mints the token,
 your browser never sees the key.**
+
+### The whole community, or one section
+
+`section: 'community'` frames **the community page itself** — its navigation and every section the
+plan enables — exactly as a member sees it after signing in. They land where a normal sign-in puts
+them and move around inside the frame. Reach for it when the frame *is* the page.
+
+The others (`tweets`, `events`, `blogs`, `albums`) are chrome-less panes meant to sit inside your
+own layout: your header, your navigation, one Gurb panel among your content. They have no menu and
+cannot navigate anywhere.
+
+The trade is real. A whole community brings its own scroll height, its own internal routing — your
+back button will not follow it — and links that may try to leave the frame. A pane brings none of
+that. Heights default accordingly: **900px for a community, 600px for a pane.**
+
+### Gurb must allow your origin to frame it
+
+Framing is refused unless the Gurb deployment sends `Content-Security-Policy: frame-ancestors`
+covering your site on the `/embed` path. `X-Frame-Options` cannot express a list of origins,
+`ALLOW-FROM` is dead in current browsers, and sending both headers makes browsers ignore the CSP
+list entirely — so it must be CSP, and `X-Frame-Options` must be *absent* on that path. If the
+frame stays blank with a console message about `X-Frame-Options`, that is server configuration on
+Gurb's side, not a bug in your integration.
 
 **1. Your backend exposes an endpoint for your own logged-in users:**
 
@@ -71,6 +200,33 @@ embed.destroy()
 
 **3. There is no step three.** Permissions, feature gates, and moderation all apply inside
 the frame exactly as they do on mygurb.com, because the embedded user is an ordinary member.
+
+### Three ways to render it
+
+```ts
+// (a) The loader, with a fetch callback. Auto-resizes; the token never enters your HTML.
+mount({ target: '#community', slug: 'my-club', section: 'community', fetchToken })
+
+// (b) The loader, with a token you already minted this request.
+mount({ target: '#community', slug: 'my-club', section: 'community', token })
+
+// (c) A plain iframe string, rendered on your server. No script, no CDN, nothing to load.
+res.send(gurb.embed.iframe({ section: 'community', token }))
+```
+
+`(a)` is the default choice: tokens live ~120 seconds and are single-use, so one baked into
+server-rendered HTML is often already dead by the time a user scrolls to the frame — and a dead
+token renders an empty pane with no obvious cause.
+
+`(c)` is the one to reach for when a third-party script on your critical path is unwelcome or your
+CSP forbids one. What you give up is auto-resize, so pick a `height` that suits your layout — the
+frame will not grow by itself. `gurb.embed.buildUrl({ section, token })` gives you just the URL if
+you would rather write the element yourself.
+
+All three put the token in the **URL fragment**, never a query string. A fragment is never
+transmitted to a server, so the token stays out of Gurb's access logs, out of yours if you proxy,
+and out of the `Referer` header of every outbound link the framed page renders. It is a live
+credential; that is the difference between a short-lived secret and a logged one.
 
 ### What you cannot do, on purpose
 
@@ -116,6 +272,71 @@ console.log(key.key)   // gurb_a1b2…  — hand it over now or mint another
 
 Keys default to `['read']`. Ask for `['write']` only when the integration genuinely writes: a
 read-only key that leaks is an incident you can close.
+
+### Who owns the community you create
+
+By default the community is founded by **whoever the key acts for** — and a platform key can only
+be minted by a Gurb super admin, so by default that is the platform admin, not you. Communities
+created that way belong to someone else, and nobody notices until they ask why.
+
+Name the owner by e-mail:
+
+```ts
+const community = await admin.communities.create({
+  name: 'نادي القراءة',
+  slug: 'book-club',
+  ownerEmail: 'ahmed@corp.com',      // ← this account founds it
+  ownerFirstName: 'أحمد',            // only used if the account is new
+})
+```
+
+That account becomes the community's sole `COMMUNITY_ADMIN`. If it has no Gurb account yet, one is
+created; if it already exists it is **reused and never modified** — no password change, no name
+overwrite, no role anywhere except inside the community it is about to found. Naming an address
+that already belongs to somebody hands them a community; it cannot take their account over.
+
+Ask the platform which account your key acts for **before** you create anything:
+
+```ts
+import { effectiveOwner } from '@gurb/server'
+
+const me = await admin.me()
+if (me.actsForIssuer) {
+  throw new Error('This key names no subject — pass ownerEmail, or ask for a new key.')
+}
+effectiveOwner(me).email
+```
+
+`owner` (a full `ExternalOwner` backed by a registered identity provider) does the same job with a
+provider assertion behind it. Send one or the other — both together is refused before any request
+leaves, because they answer the same question two ways and there is no useful behaviour for the
+contradiction.
+
+### Creating a community takes exactly two fields
+
+`{ name, slug }` plus the optional owner above, and nothing else. There is no `description` and no
+`type`, because the endpoint does not honour them: **visibility is decided server-side (PRIVATE).**
+Accepting those and dropping them would be worse than not offering them — a caller who passes
+`type: 'PUBLIC'`, gets a private community and no error has been lied to by an API that looked like
+it was listening.
+
+- **`name`** — the human-facing name, usually Arabic. Trimmed before sending, at most **100
+  characters**, counted as characters and not UTF-16 units, so a 100-character Arabic name fits.
+- **`slug`** — lowercase letters, digits and hyphens only, **3–50 characters**, no leading or
+  trailing hyphen, no consecutive hyphens.
+
+The slug is checked **before any HTTP call**, and the message names the rule you broke rather than
+saying "invalid slug":
+
+```ts
+await admin.communities.create({ name: 'نادي', slug: 'Book-Club' })
+// GurbApiError: Community slugs are lowercase: "Book-Club" is not valid,
+// but "book-club" would be. …    (code VALIDATION_ERROR, status 0)
+```
+
+Status `0` is the tell: nothing was sent, so nothing was created. Uniqueness is *not* checked
+locally — a client cannot know it — so a taken slug still arrives as a `400 VALIDATION_ERROR` from
+the server, and that is a normal form error rather than an exceptional condition.
 
 ## Creating a community by approval
 
@@ -217,6 +438,16 @@ Design rationale lives in [`docs/specs/2026-08-11-gurb-typescript-sdk-design.md`
 
 ## Status
 
-The typed client and the embed mounter are implemented and tested. The two platform endpoints
-they call — `POST /api/embed/sessions` and the token exchange behind `/embed/*` — are not
-publicly available yet; until they ship, the embed path runs against the stub in `examples/`.
+The typed clients, the error mapping and the embed mounter are implemented and tested. The SDK is
+exercised against a stubbed transport in the unit suite and against the reference mock server
+(`examples/host-demo/mock-gurb.mjs`) over real HTTP.
+
+This package behaves identically on the wire to the [PHP SDK](https://github.com/gurb/gurb-php-sdk).
+Both were written against the same route contract, and the shared pieces — the two key patterns,
+the `X-Api-Key` header, the `{ success, data }` unwrapping, the 500-row bulk limit, the local
+validation messages — are deliberately duplicated rather than approximated, so the two SDKs cannot
+disagree about what is valid.
+
+The embed URL shape (`/embed#token=…`, with `section` omitted for a whole community) is the
+contract with `app/embed/page.tsx` in the Gurb web app, pinned by boundary tests in **both**
+`@gurb/embed` and `@gurb/server`. Changing one requires changing the others in the same commit.

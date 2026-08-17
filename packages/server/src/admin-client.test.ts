@@ -140,3 +140,139 @@ describe('creating a community takes two fields and nothing else', () => {
     await expect(admin.communities.create({ name: 'n', slug: 'a'.repeat(50) })).resolves.toBeDefined()
   })
 })
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Owning a community, and knowing who your key acts for
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('slug messages name the rule that was broken', () => {
+  function admin(fn: typeof globalThis.fetch) {
+    return createGurbAdminClient({ adminKey: ADMIN_KEY, baseUrl: 'https://x.test', fetch: fn })
+  }
+
+  /**
+   * "Invalid slug" tells an integrator nothing — they are looking at a string
+   * that looks fine to them. Each of these names the rule and shows the value,
+   * so the fix is obvious from the log line alone.
+   */
+  it('offers the lowercased form, because that is the usual mistake', async () => {
+    const { fn } = stubFetch(201, {})
+    await expect(admin(fn).communities.create({ name: 'n', slug: 'Book-Club' })).rejects.toThrow(
+      /"Book-Club" is not valid, but "book-club" would be/,
+    )
+  })
+
+  it('says "no Arabic here, the Arabic name goes in name"', async () => {
+    const { fn } = stubFetch(201, {})
+    await expect(admin(fn).communities.create({ name: 'n', slug: 'نادي' })).rejects.toThrow(
+      /The Arabic name goes in `name`/,
+    )
+  })
+
+  it('distinguishes a leading hyphen from a doubled one', async () => {
+    const { fn } = stubFetch(201, {})
+    await expect(admin(fn).communities.create({ name: 'n', slug: '-abc' })).rejects.toThrow(
+      /may not start or end with a hyphen/,
+    )
+    await expect(admin(fn).communities.create({ name: 'n', slug: 'a--b' })).rejects.toThrow(
+      /consecutive hyphens/,
+    )
+  })
+
+  /**
+   * `'نادي'.length` counts UTF-16 units, so a byte- or unit-based check rejects
+   * an ordinary Arabic name for being "over 100" — a bug that only shows up in
+   * the language the product is actually used in.
+   */
+  it('counts a name in characters, not UTF-16 code units', async () => {
+    const { fn, calls } = stubFetch(201, { data: {} })
+    // 60 astral characters: 120 UTF-16 units, 60 code points. Must be accepted.
+    await expect(
+      admin(fn).communities.create({ name: '𝕏'.repeat(60), slug: 'astral-name' }),
+    ).resolves.toBeDefined()
+    expect(calls).toHaveLength(1)
+  })
+})
+
+describe('who ends up owning the community', () => {
+  function admin(fn: typeof globalThis.fetch) {
+    return createGurbAdminClient({ adminKey: ADMIN_KEY, baseUrl: 'https://x.test', fetch: fn })
+  }
+
+  it('sends ownerEmail, with the names only when they are non-empty', async () => {
+    const { fn, calls } = stubFetch(201, { data: { id: 'c1' } })
+
+    await admin(fn).communities.create({
+      name: 'مجتمع',
+      slug: 'shop-club',
+      ownerEmail: '  founder@shop.test  ',
+      ownerFirstName: 'عبدالله',
+      ownerFamilyName: '   ',
+    })
+
+    const body = JSON.parse(String(calls[0]!.init.body)) as Record<string, unknown>
+    expect(body).toEqual({
+      name: 'مجتمع',
+      slug: 'shop-club',
+      ownerEmail: 'founder@shop.test',
+      ownerFirstName: 'عبدالله',
+    })
+    // An empty string is a value the server has to interpret, and its answer
+    // would be a 400 for a field the caller simply left alone.
+    expect(Object.keys(body)).not.toContain('ownerFamilyName')
+  })
+
+  /**
+   * No correct guess exists: one asserts an identity through a registered
+   * provider, the other names a Gurb account directly, and they can disagree
+   * about which human is meant.
+   */
+  it('refuses owner and ownerEmail together, with no request made', async () => {
+    const { fn, calls } = stubFetch(201, {})
+
+    await expect(
+      admin(fn).communities.create({
+        name: 'n',
+        slug: 'both-owners',
+        ownerEmail: 'a@b.test',
+        owner: { provider: 'okta', externalUserId: 'sub', email: 'a@b.test', emailVerified: true },
+      }),
+    ).rejects.toThrow(/either owner or ownerEmail, not both/)
+    expect(calls).toHaveLength(0)
+  })
+
+  it('sends neither key when neither is given', async () => {
+    const { fn, calls } = stubFetch(201, { data: {} })
+    await admin(fn).communities.create({ name: 'n', slug: 'no-owner' })
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ name: 'n', slug: 'no-owner' })
+  })
+})
+
+describe('me()', () => {
+  it('asks admin/sdk/me and returns the identity unwrapped', async () => {
+    const identity = {
+      subject: {
+        userId: 'u1',
+        email: 'founder@shop.test',
+        displayName: 'عبدالله',
+        phone: '00000000000',
+        phoneIsPlaceholder: true,
+      },
+      issuedBy: {
+        userId: 'u0',
+        email: 'admin@mygurb.com',
+        displayName: 'Platform',
+        phone: '0500000000',
+        phoneIsPlaceholder: false,
+      },
+      actsForIssuer: false,
+      key: { id: 'k1', name: 'shop-prod', scopes: ['read', 'write'] },
+    }
+    const { fn, calls } = stubFetch(200, { success: true, data: identity })
+    const admin = createGurbAdminClient({ adminKey: ADMIN_KEY, baseUrl: 'https://x.test', fetch: fn })
+
+    await expect(admin.me()).resolves.toEqual(identity)
+    expect(calls[0]!.url).toBe('https://x.test/api/admin/sdk/me')
+    expect(calls[0]!.init.method).toBe('GET')
+  })
+})

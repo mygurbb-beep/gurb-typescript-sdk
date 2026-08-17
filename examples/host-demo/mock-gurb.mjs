@@ -293,16 +293,21 @@ export function createMockGurb({ allowedOrigins = ['http://localhost:4099'] } = 
     }
 
     // ── The framed page ──────────────────────────────────────────────────────
-    const embedMatch = path.match(/^\/embed\/([^/]+)\/([^/]+)$/)
-    if (req.method === 'GET' && embedMatch) {
-      const [, slug, section] = embedMatch
+    //
+    // ONE PATH, NO PARAMETERS. This mock used to serve `/embed/{slug}/{section}`
+    // and it was modelling a route the real platform does not have: Gurb's page
+    // lives at `/embed` and takes everything from the fragment. Because the
+    // fragment never reaches a server, there is nothing left to put in a path —
+    // the token's envelope already pins the community, and the section is the
+    // browser's business.
+    if (req.method === 'GET' && path === '/embed') {
       // Only the registered origins may frame this. Without it, any site could.
       res.writeHead(200, {
         'Content-Type': 'text/html; charset=utf-8',
         'Content-Security-Policy': `frame-ancestors ${allowedOrigins.join(' ')}`,
         'Access-Control-Allow-Origin': '*',
       })
-      return res.end(frameHtml(slug, section))
+      return res.end(frameHtml())
     }
 
     fail(res, 404, 'NOT_FOUND', 'No such route')
@@ -639,7 +644,7 @@ async function handleAdmin(req, res, url, route) {
 
 // ─── The framed page ─────────────────────────────────────────────────────────
 
-function frameHtml(slug, section) {
+function frameHtml() {
   return `<!doctype html>
 <html lang="ar" dir="rtl"><head><meta charset="utf-8">
 <style>
@@ -678,8 +683,14 @@ function frameHtml(slug, section) {
 
     new ResizeObserver(reportHeight).observe(app)
 
-    // The token arrives in the fragment, which never reached this server.
-    const token = new URLSearchParams(location.hash.slice(1)).get('t')
+    // Everything arrives in the fragment, which never reached this server.
+    // The key is \`token\`, not \`t\` — that is the contract with @gurb/embed and
+    // with GurbClient.embed.buildUrl(), pinned by tests on both sides.
+    const fragment = new URLSearchParams(location.hash.slice(1))
+    const token = fragment.get('token')
+    // Absent means the whole community, which is where an arriving member
+    // lands anyway.
+    const section = fragment.get('section') || 'community'
 
     fetch('/api/embed/sessions/exchange', {
       method: 'POST',
@@ -697,8 +708,7 @@ function frameHtml(slug, section) {
         app.textContent = ''
         const intro = el('p', 'meta')
         intro.append(
-          'أنت داخل قسم ', strong(${JSON.stringify(section)}),
-          ' لمجتمع ', strong(${JSON.stringify(slug)}),
+          'أنت داخل قسم ', strong(section),
           ' باسم ', strong(b.data.displayName),
         )
         app.append(intro)

@@ -45,8 +45,14 @@ export class Transport {
     return this.#baseUrl
   }
 
+  /**
+   * PUT is here for exactly one endpoint — the sidebar — and it is not a
+   * normalisation opportunity. That write genuinely REPLACES the whole menu
+   * array upstream, and spelling it PATCH here would advertise a per-item merge
+   * that does not exist. The verb is part of the contract.
+   */
   async request<T>(
-    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     path: string,
     opts: { query?: Record<string, QueryValue>; body?: unknown } = {},
   ): Promise<T> {

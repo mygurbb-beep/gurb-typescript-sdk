@@ -101,7 +101,7 @@ describe('embed session round trip', () => {
 
 describe('the framed page', () => {
   it('is served with frame-ancestors, so only registered hosts may frame it', async () => {
-    const res = await fetch(`${baseUrl}/embed/demo/tweets`)
+    const res = await fetch(`${baseUrl}/embed`)
 
     expect(res.status).toBe(200)
     expect(res.headers.get('content-security-policy')).toBe('frame-ancestors http://localhost:4099')
@@ -110,7 +110,7 @@ describe('the framed page', () => {
   it('never receives the token — it arrives in the fragment', async () => {
     const gurb = createGurbClient({ apiKey: KEY, baseUrl })
     const { token } = await gurb.embed.createSession({ externalUserId: 'shop-7', displayName: 'Q' })
-    const url = gurb.embed.buildUrl({ slug: 'demo', section: 'tweets', token })
+    const url = gurb.embed.buildUrl({ section: 'tweets', token })
 
     // What the server actually sees is everything before the '#'.
     const seenByServer = url.split('#')[0]!

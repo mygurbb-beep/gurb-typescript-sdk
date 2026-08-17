@@ -1,5 +1,121 @@
 # Changelog
 
+## 0.6.0
+
+Every section Gurb has, plus the two things that decide who owns what you create.
+Matches the PHP SDK's 1.5.0 on the wire.
+
+### Added — the sections that were missing
+
+The SDK could read ten sections and write four. It can now write all of them, and
+reach three it could not see at all.
+
+- **`groups`, `consultants`, `projects`, `projects2`, `awards`** — `create`,
+  `update`, `delete` on each.
+- **`tasks`** — a whole section that was absent: `list`, `get`, `create`,
+  `update`, `delete`.
+- **`comments` and `likes`** — also absent, and the pair that matters most: an
+  integration could display a community but nobody could respond to it. Comments
+  hang off `tweets`, `blogs`, `albums` and `events`; likes off `tweets`, `blogs`
+  and `albums`. Events have no like route in Gurb, so `LikeableParent` has no
+  case for one rather than promising something the platform does not do.
+- **Customization** — `community.getSettings()` / `updateSettings()`,
+  `updateBranding()`, `getLegal()` / `updateLegal()`, plus `sidebar` and
+  `advertisements`.
+
+### Added — who founds a community
+
+- **`admin.communities.create({ ownerEmail })`.** By default a community is
+  founded by whoever the key acts for, and a platform key can only be minted by a
+  super admin — so by default it belongs to the platform admin rather than to
+  you. Naming an address makes that account the sole `COMMUNITY_ADMIN`. An
+  account is created if none exists; an existing one is reused and never
+  modified. `ownerFirstName` / `ownerFamilyName` are used only for a new account.
+
+  Mutually exclusive with `owner`, and sending both is refused before any request
+  leaves: they answer the same question two ways and there is no useful behaviour
+  for the contradiction.
+
+- **`admin.me()`** — who this key acts for, returning `SdkIdentity`. Call it
+  before anything irreversible: if `actsForIssuer` is true, everything you create
+  will belong to somebody else. `effectiveOwner()` and `realPhone()` are exported
+  alongside it.
+
+### Added — embedding
+
+- **`section: 'community'`** — the community page itself in a frame, navigation
+  and all, rather than a single chrome-less pane. Heights now default per shape:
+  **900px for a community, 600px for a pane**, because a community at 600px shows
+  a navigation bar and little else in the moment before anything resizes, and
+  that moment is when someone decides the integration is broken.
+- **`gurb.embed.iframe()`** — a plain frame string with no loader script, no CDN
+  and nothing to load, for server-rendered pages where a third-party script is
+  unwelcome or a CSP forbids one. `mount()` is unchanged and still the right
+  choice when you want auto-resize or a token fetched after page load.
+
+### Fixed
+
+- **`gurb.embed.buildUrl()` pointed at a route that does not exist.** It built
+  `/embed/{slug}/{section}#t=…`; the page that answers the handshake lives at
+  `/embed` and reads a fragment key named `token`. So the URL named a missing
+  route *and* a key nothing reads. `@gurb/embed` was corrected in 0.5.x; this is
+  the same fix on the server side, and both are now pinned by boundary tests that
+  assert the shape rather than the code that produces it.
+
+  `buildUrl()`'s `slug` is now optional and unused, kept so existing call sites
+  still compile. The token's server-side envelope already carries the
+  communityId, so a slug in the path could only agree or contradict.
+
+- **`examples/host-demo` modelled the same wrong route**, which is exactly why
+  the integration suite never caught it. A mock that agrees with your bug proves
+  nothing.
+
+### Behaviour worth knowing before you integrate
+
+Every write uses **the same permission Gurb's own web app checks** — never
+stricter, never looser — so the requirements differ per section and cannot be
+unified. An admin who grants `blogs:create` in the dashboard expects it to mean
+the same thing through an integration.
+
+- **A plain member holds none of them.** `MEMBER` is an empty permission set in
+  Gurb and publishing is a capability an admin grants, so a key whose owner was
+  granted nothing reads everything and publishes nothing. Correct, not a
+  misconfiguration.
+- **Comments and likes need no permission at all** — membership is the gate. They
+  are the exception because they are what an ordinary member does.
+- **Update and delete check authorship first.** Your key may always edit what it
+  published and needs `*:manage` or `*:moderate` for anyone else's. Group DELETE,
+  consultants, awards and tasks have no author branch at all — that asymmetry is
+  real upstream and is mirrored rather than smoothed out.
+- **Feature gates are not permissions.** A plan lacking a section answers `403
+  FEATURE_NOT_AVAILABLE` on every call to it, reads included — including
+  `advertisements.listActive()`, the member-facing widget feed that needs no
+  permission. That combination has already been misdiagnosed in production.
+- **Projects write `name` and read `title`.** Reading a project and posting it
+  straight back fails.
+- **`tasks.create()` does not accept `status`** — every task starts `PENDING` —
+  and the date field is `dueAt`. `title` caps at 40 characters upstream.
+- **`sidebar.update()` is a PUT and replaces the whole menu.** The verb is the
+  contract; spelling it PATCH would advertise a per-item merge that does not
+  exist.
+- **Settings updates must send only the keys you mean to change.** The server
+  merges deeply for `pageVisibility` only; any other key you include replaces its
+  counterpart wholesale. Never round-trip a read blob.
+- **Uploads are still unsupported everywhere.** An album is created empty, a
+  tweet carries no attachment, and there is no `advertisements.create` at all —
+  an ad *is* its image. They need storage-budget accounting this surface does not
+  implement, and shipping them without it would let a community exceed the
+  storage its plan pays for.
+
+### Not exposed, deliberately
+
+Granting an award (it writes recipient rows and publishes every recipient's
+identity in a webhook), task assignment (its notification fan-out lives outside
+the service, and one call can address the whole community), project requests (a
+different table with a different authorization model), and the platform's own
+footer, help and legal pages (public tables with no community column — a
+community key writing them would be a cross-tenant write).
+
 ## 0.5.0
 
 The server side of bulk membership and embed sessions, and a way to create the
