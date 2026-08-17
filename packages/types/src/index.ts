@@ -1503,3 +1503,95 @@ export interface BulkMemberResult {
 
 /** The most members one call may carry. Larger lists must be chunked. */
 export const BULK_MEMBER_LIMIT = 500
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Permission labels
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * One permission, WITH ITS HUMAN-READABLE LABELS.
+ *
+ * `members.getPermissions()` answers with bare identifiers — `['CREATE_POST',
+ * 'MODERATE_CONTENT', …]` — and nothing else. That is correct for deciding what
+ * a member may do and useless for showing anybody, so an integration that
+ * rendered them put raw SCREAMING_SNAKE_CASE in front of its users, in every
+ * language, with no way through this SDK to do better.
+ *
+ * The platform has always carried Arabic labels for every permission; the SDK
+ * simply never exposed the endpoint that returns them.
+ *
+ * Both languages arrive on every row. The backend is English-with-stable-codes
+ * by design and each frontend owns its translation, which is why it ships
+ * `name` AND `nameArabic` rather than guessing from a header.
+ */
+export interface PermissionDefinition {
+  /** The stable identifier — what `getPermissions()` returns. */
+  id: Permission
+  name: string
+  nameArabic: string
+  description: string
+  descriptionArabic: string
+  /** Which community roles this may be granted to. */
+  assignableTo: CommunityRole[]
+  /** True when only a COMMUNITY_ADMIN may hold it. Filtered out when you pass a role. */
+  isAdminOnly: boolean
+  /** Meaningless without a `role` argument — with none it mirrors `!isAdminOnly`. */
+  canAssign: boolean
+}
+
+/** A group of related permissions, as Gurb's own dashboard groups them. */
+export interface PermissionCategory {
+  id: string
+  name: string
+  nameArabic: string
+  permissions: PermissionDefinition[]
+}
+
+/**
+ * Every permission the platform defines, with labels in both languages.
+ *
+ * ⚠️ CACHE THIS. It is a catalogue, not per-member state — it changes when the
+ * PLATFORM ships a new permission, a few times a year. The payload carries
+ * every permission and every label, so the cost is real and identical on every
+ * call. Fetching it once per member while rendering a list is the single
+ * easiest way to make a permissions screen take twenty seconds.
+ */
+export interface PermissionCatalog {
+  categories: PermissionCategory[]
+  /** Every permission the platform defines, including ones you cannot assign. */
+  totalPermissions: number
+  /**
+   * What the role you asked about gets automatically, with no grant. Empty when
+   * you asked for no particular role.
+   *
+   * Worth reading before granting anything: `MEMBER`'s defaults are an EMPTY
+   * LIST in Gurb — a plain member holds nothing, and every capability is
+   * granted individually.
+   */
+  roleDefaults?: Permission[]
+  /** The role this was filtered for, or `all`. */
+  targetRole: string
+}
+
+/**
+ * A permission id → label map, ready to render.
+ *
+ * KEEP A `?? id` FALLBACK at the call site. The catalogue is what the platform
+ * defines TODAY; a member can hold a permission minted by a newer release than
+ * the one your cache was built from, and a missing key rendering as an empty
+ * string makes a permission vanish from the screen. Showing the raw id is
+ * worse-looking and far better behaved.
+ */
+export function permissionLabels(
+  catalog: PermissionCatalog,
+  locale: 'ar' | 'en' = 'ar',
+): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const category of catalog.categories) {
+    for (const permission of category.permissions) {
+      out[permission.id] = locale === 'ar' ? permission.nameArabic : permission.name
+    }
+  }
+  return out
+}
+export * from './permissions.js'

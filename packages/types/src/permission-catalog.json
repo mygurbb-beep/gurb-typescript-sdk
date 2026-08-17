@@ -1,0 +1,763 @@
+{
+ "source": "rootnex_backend@main src/permissions/constants/{permissions,roles}.ts",
+ "total": 48,
+ "categories": [
+  {
+   "id": "users",
+   "name": "User Management",
+   "nameArabic": "إدارة المستخدمين",
+   "permissions": [
+    {
+     "id": "users:manage",
+     "name": "Manage Users",
+     "nameArabic": "إدارة المستخدمين",
+     "description": "Full control - add, edit, delete users and assign permissions",
+     "descriptionArabic": "التحكم الكامل - إضافة وتعديل وحذف المستخدمين وتعيين الصلاحيات",
+     "type": "manage",
+     "assignableTo": []
+    },
+    {
+     "id": "users:moderate",
+     "name": "Moderate Users",
+     "nameArabic": "إدارة المستخدمين",
+     "description": "Suspend, delete, or freeze user accounts",
+     "descriptionArabic": "تعليق أو حذف أو تجميد حسابات المستخدمين",
+     "type": "moderate",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "home_posts",
+   "name": "Home Posts",
+   "nameArabic": "منشورات الصفحة الرئيسية",
+   "permissions": [
+    {
+     "id": "posts:manage",
+     "name": "Manage Posts",
+     "nameArabic": "إدارة المنشورات",
+     "description": "Full control over ALL home posts",
+     "descriptionArabic": "التحكم الكامل في جميع منشورات الصفحة الرئيسية",
+     "type": "manage",
+     "assignableTo": []
+    },
+    {
+     "id": "posts:create",
+     "name": "Create Posts",
+     "nameArabic": "إنشاء منشورات",
+     "description": "Create new posts + edit/delete own posts",
+     "descriptionArabic": "إنشاء منشورات جديدة + تعديل/حذف منشوراتك",
+     "type": "create",
+     "assignableTo": [
+      "MODERATOR",
+      "MEMBER"
+     ]
+    },
+    {
+     "id": "posts:moderate",
+     "name": "Moderate Posts",
+     "nameArabic": "إدارة المنشورات",
+     "description": "Edit/delete/hide others' posts",
+     "descriptionArabic": "تعديل/حذف/إخفاء منشورات الآخرين",
+     "type": "moderate",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "group_posts",
+   "name": "Group Posts",
+   "nameArabic": "منشورات المجموعات",
+   "permissions": [
+    {
+     "id": "group_posts:manage",
+     "name": "Manage Group Posts",
+     "nameArabic": "إدارة منشورات المجموعات",
+     "description": "Full control in ALL groups",
+     "descriptionArabic": "التحكم الكامل في جميع المجموعات",
+     "type": "manage",
+     "assignableTo": []
+    },
+    {
+     "id": "group_posts:create",
+     "name": "Create Group Posts",
+     "nameArabic": "إنشاء منشورات المجموعات",
+     "description": "Create posts in joined groups + edit/delete own",
+     "descriptionArabic": "إنشاء منشورات في المجموعات المنضم إليها + تعديل/حذف منشوراتك",
+     "type": "create",
+     "assignableTo": [
+      "MODERATOR",
+      "MEMBER"
+     ]
+    },
+    {
+     "id": "group_posts:moderate",
+     "name": "Moderate Group Posts",
+     "nameArabic": "إدارة منشورات المجموعات",
+     "description": "Moderate others' posts in joined groups",
+     "descriptionArabic": "إدارة منشورات الآخرين في المجموعات المنضم إليها",
+     "type": "moderate",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "calendar",
+   "name": "Calendar / Events",
+   "nameArabic": "التقويم / الفعاليات",
+   "permissions": [
+    {
+     "id": "calendar:manage",
+     "name": "Manage Calendar",
+     "nameArabic": "إدارة التقويم",
+     "description": "Full control over ALL events",
+     "descriptionArabic": "التحكم الكامل في جميع الفعاليات",
+     "type": "manage",
+     "assignableTo": []
+    },
+    {
+     "id": "calendar:create",
+     "name": "Create Events",
+     "nameArabic": "إنشاء فعاليات",
+     "description": "Create new events + edit/delete own events",
+     "descriptionArabic": "إنشاء فعاليات جديدة + تعديل/حذف فعالياتك",
+     "type": "create",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    },
+    {
+     "id": "calendar:moderate",
+     "name": "Moderate Calendar",
+     "nameArabic": "إدارة التقويم",
+     "description": "Edit/delete/hide others' events",
+     "descriptionArabic": "تعديل/حذف/إخفاء فعاليات الآخرين",
+     "type": "moderate",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "albums",
+   "name": "Albums",
+   "nameArabic": "الألبومات",
+   "permissions": [
+    {
+     "id": "albums:manage",
+     "name": "Manage Albums",
+     "nameArabic": "إدارة الألبومات",
+     "description": "Full control over ALL albums",
+     "descriptionArabic": "التحكم الكامل في جميع الألبومات",
+     "type": "manage",
+     "assignableTo": []
+    },
+    {
+     "id": "albums:create",
+     "name": "Create Albums",
+     "nameArabic": "إنشاء ألبومات",
+     "description": "Create new albums + edit/delete own albums",
+     "descriptionArabic": "إنشاء ألبومات جديدة + تعديل/حذف ألبوماتك",
+     "type": "create",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    },
+    {
+     "id": "albums:moderate",
+     "name": "Moderate Albums",
+     "nameArabic": "إدارة الألبومات",
+     "description": "Edit/delete/hide others' albums",
+     "descriptionArabic": "تعديل/حذف/إخفاء ألبومات الآخرين",
+     "type": "moderate",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "blogs",
+   "name": "Blogs",
+   "nameArabic": "المدونات",
+   "permissions": [
+    {
+     "id": "blogs:manage",
+     "name": "Manage Blogs",
+     "nameArabic": "إدارة المدونات",
+     "description": "Full control over ALL blogs",
+     "descriptionArabic": "التحكم الكامل في جميع المدونات",
+     "type": "manage",
+     "assignableTo": []
+    },
+    {
+     "id": "blogs:create",
+     "name": "Create Blogs",
+     "nameArabic": "إنشاء مدونات",
+     "description": "Create new blogs + edit/delete own blogs",
+     "descriptionArabic": "إنشاء مدونات جديدة + تعديل/حذف مدوناتك",
+     "type": "create",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    },
+    {
+     "id": "blogs:moderate",
+     "name": "Moderate Blogs",
+     "nameArabic": "إدارة المدونات والأقسام",
+     "description": "Edit/delete/hide others' blogs + manage blog sections",
+     "descriptionArabic": "تعديل/حذف/إخفاء مدونات الآخرين + إدارة أقسام المدونات",
+     "type": "moderate",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "groups",
+   "name": "Groups",
+   "nameArabic": "المجموعات",
+   "permissions": [
+    {
+     "id": "groups:manage",
+     "name": "Manage Groups",
+     "nameArabic": "إدارة المجموعات",
+     "description": "Full control + manage ALL group members",
+     "descriptionArabic": "التحكم الكامل + إدارة جميع أعضاء المجموعات",
+     "type": "manage",
+     "assignableTo": []
+    },
+    {
+     "id": "groups:create",
+     "name": "Create Groups",
+     "nameArabic": "إنشاء مجموعات",
+     "description": "Create new groups + manage own groups",
+     "descriptionArabic": "إنشاء مجموعات جديدة + إدارة مجموعاتك",
+     "type": "create",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    },
+    {
+     "id": "groups:moderate",
+     "name": "Moderate Groups",
+     "nameArabic": "إدارة المجموعات",
+     "description": "Moderate content in groups",
+     "descriptionArabic": "إدارة المحتوى في المجموعات",
+     "type": "moderate",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "projects",
+   "name": "Projects",
+   "nameArabic": "المشاريع",
+   "permissions": [
+    {
+     "id": "projects:manage",
+     "name": "Manage Projects",
+     "nameArabic": "إدارة المشاريع (مدير)",
+     "description": "Full control over ALL projects + manage project requests",
+     "descriptionArabic": "التحكم الكامل في جميع المشاريع + إدارة طلبات المشاريع",
+     "type": "manage",
+     "assignableTo": []
+    },
+    {
+     "id": "projects:create",
+     "name": "Create Projects",
+     "nameArabic": "إنشاء مشاريع",
+     "description": "Create new projects + edit/delete own projects",
+     "descriptionArabic": "إنشاء مشاريع جديدة + تعديل/حذف مشاريعك الخاصة فقط (لا يمكن تعديل/حذف مشاريع الآخرين)",
+     "type": "create",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    },
+    {
+     "id": "projects:moderate",
+     "name": "Moderate Projects",
+     "nameArabic": "إدارة المشاريع (مشرف)",
+     "description": "Full moderator control: create, edit, delete projects + manage project requests",
+     "descriptionArabic": "التحكم الكامل للمشرف: إنشاء وتعديل وحذف المشاريع + إدارة طلبات المشاريع",
+     "type": "moderate",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    },
+    {
+     "id": "projects:edit",
+     "name": "Edit Projects",
+     "nameArabic": "تعديل المشاريع",
+     "description": "Edit/delete projects only (no create, no project requests)",
+     "descriptionArabic": "تعديل/حذف المشاريع فقط (لا يمكن إنشاء مشاريع أو إدارة طلبات المشاريع)",
+     "type": "moderate",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "projects2",
+   "name": "Projects 2",
+   "nameArabic": "المشاريع 2",
+   "permissions": [
+    {
+     "id": "projects2:manage",
+     "name": "Manage Projects 2",
+     "nameArabic": "إدارة المشاريع 2 (مدير)",
+     "description": "Full control over ALL projects 2 + manage project 2 requests",
+     "descriptionArabic": "التحكم الكامل في جميع المشاريع 2 + إدارة طلبات المشاريع 2",
+     "type": "manage",
+     "assignableTo": []
+    },
+    {
+     "id": "projects2:create",
+     "name": "Create Projects 2",
+     "nameArabic": "إنشاء مشاريع 2",
+     "description": "Create new projects 2 + edit/delete own projects 2",
+     "descriptionArabic": "إنشاء مشاريع 2 جديدة + تعديل/حذف مشاريعك 2 الخاصة فقط (لا يمكن تعديل/حذف مشاريع 2 الآخرين)",
+     "type": "create",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    },
+    {
+     "id": "projects2:moderate",
+     "name": "Moderate Projects 2",
+     "nameArabic": "إدارة المشاريع 2 (مشرف)",
+     "description": "Full moderator control: create, edit, delete projects 2 + manage project 2 requests",
+     "descriptionArabic": "التحكم الكامل للمشرف: إنشاء وتعديل وحذف المشاريع 2 + إدارة طلبات المشاريع 2",
+     "type": "moderate",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    },
+    {
+     "id": "projects2:edit",
+     "name": "Edit Projects 2",
+     "nameArabic": "تعديل المشاريع 2",
+     "description": "Edit/delete projects 2 only (no create, no project 2 requests)",
+     "descriptionArabic": "تعديل/حذف المشاريع 2 فقط (لا يمكن إنشاء مشاريع 2 أو إدارة طلبات المشاريع 2)",
+     "type": "moderate",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "notifications",
+   "name": "Notifications",
+   "nameArabic": "الإشعارات",
+   "permissions": [
+    {
+     "id": "notifications:manage",
+     "name": "Manage Notifications",
+     "nameArabic": "إدارة الإشعارات",
+     "description": "Create and send notifications to users",
+     "descriptionArabic": "إنشاء وإرسال الإشعارات للمستخدمين",
+     "type": "manage",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "advertisements",
+   "name": "Advertisements",
+   "nameArabic": "الإعلانات",
+   "permissions": [
+    {
+     "id": "ads:manage",
+     "name": "Manage Advertisements",
+     "nameArabic": "إدارة الإعلانات",
+     "description": "Full CRUD on advertisement boards",
+     "descriptionArabic": "التحكم الكامل في لوحات الإعلانات",
+     "type": "manage",
+     "assignableTo": []
+    }
+   ]
+  },
+  {
+   "id": "settings",
+   "name": "Settings & Customization",
+   "nameArabic": "الإعدادات والتخصيص",
+   "permissions": [
+    {
+     "id": "settings:manage",
+     "name": "Manage Settings",
+     "nameArabic": "إدارة الإعدادات",
+     "description": "Community settings, custom email domain, custom domain",
+     "descriptionArabic": "إعدادات المجتمع، النطاق المخصص، البريد الإلكتروني المخصص",
+     "type": "manage",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    },
+    {
+     "id": "homepage:customize",
+     "name": "Customize Home Page",
+     "nameArabic": "تخصيص الصفحة الرئيسية",
+     "description": "Customize widgets, layout, featured content",
+     "descriptionArabic": "تخصيص الودجات والتخطيط والمحتوى المميز",
+     "type": "customize",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "consultants",
+   "name": "Consultants",
+   "nameArabic": "الجلسات الاستشارية",
+   "permissions": [
+    {
+     "id": "consultants:manage",
+     "name": "Manage Consultants",
+     "nameArabic": "إدارة الجلسات الاستشارية",
+     "description": "Full control over consultants - create, edit, delete, reorder",
+     "descriptionArabic": "التحكم الكامل في الجلسات الاستشارية - إنشاء وتعديل وحذف وإعادة ترتيب",
+     "type": "manage",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "tasks",
+   "name": "Tasks",
+   "nameArabic": "المهام",
+   "permissions": [
+    {
+     "id": "tasks:manage",
+     "name": "Manage Tasks",
+     "nameArabic": "إدارة المهام",
+     "description": "Full control over ALL tasks, sections, headings, assignments, and analytics",
+     "descriptionArabic": "التحكم الكامل في جميع المهام والأقسام والعناوين والتعيينات والتحليلات",
+     "type": "manage",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "discovery",
+   "name": "Discovery",
+   "nameArabic": "الاكتشاف",
+   "permissions": [
+    {
+     "id": "discovery:manage",
+     "name": "Manage Discovery",
+     "nameArabic": "إدارة الاكتشاف",
+     "description": "Control whether the community appears in the public explore listing",
+     "descriptionArabic": "التحكم في ظهور المجتمع في صفحة استكشاف المجتمعات بتطبيق الجوال",
+     "type": "manage",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "custom_domain_email",
+   "name": "Custom Domain & Email",
+   "nameArabic": "النطاق والبريد المخصص",
+   "permissions": [
+    {
+     "id": "custom_domain:manage",
+     "name": "Manage Custom Domain",
+     "nameArabic": "إدارة النطاق المخصص",
+     "description": "Add, verify, and remove custom domain for the community",
+     "descriptionArabic": "إضافة وتحقق وإزالة النطاق المخصص للمجتمع",
+     "type": "manage",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    },
+    {
+     "id": "custom_email:manage",
+     "name": "Manage Custom Email",
+     "nameArabic": "إدارة البريد المخصص",
+     "description": "Setup, verify, and remove custom email domain for the community",
+     "descriptionArabic": "إعداد وتحقق وإزالة نطاق البريد المخصص للمجتمع",
+     "type": "manage",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "support_chat",
+   "name": "Support Chat",
+   "nameArabic": "دردشة الدعم",
+   "permissions": [
+    {
+     "id": "support_chat:respond",
+     "name": "Respond to Support Chat",
+     "nameArabic": "الرد على دردشة الدعم",
+     "description": "View and respond to support chat conversations from community members",
+     "descriptionArabic": "عرض والرد على محادثات الدعم من أعضاء المجتمع",
+     "type": "moderate",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "templates",
+   "name": "Templates",
+   "nameArabic": "القوالب",
+   "permissions": [
+    {
+     "id": "templates:use",
+     "name": "Use Templates",
+     "nameArabic": "استخدام القوالب",
+     "description": "Browse the template marketplace and use templates to create content",
+     "descriptionArabic": "تصفح سوق القوالب واستخدام القوالب لإنشاء المحتوى",
+     "type": "create",
+     "assignableTo": [
+      "MODERATOR",
+      "MEMBER"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "family_tree",
+   "name": "Family Tree",
+   "nameArabic": "الشجرة العائلية",
+   "permissions": [
+    {
+     "id": "tree:manage",
+     "name": "Manage Family Tree",
+     "nameArabic": "إدارة الشجرة العائلية",
+     "description": "Full control over family tree - add, edit, delete, reorder members",
+     "descriptionArabic": "التحكم الكامل في الشجرة العائلية - إضافة وتعديل وحذف وإعادة ترتيب الأفراد",
+     "type": "manage",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "help_center",
+   "name": "Help Center",
+   "nameArabic": "مركز المساعدة",
+   "permissions": [
+    {
+     "id": "help_center:access",
+     "name": "Access Help Center",
+     "nameArabic": "الوصول إلى مركز المساعدة",
+     "description": "View the community help center page (help articles + support contact channels)",
+     "descriptionArabic": "عرض صفحة مركز المساعدة الخاصة بالمجتمع (المقالات وقنوات الدعم)",
+     "type": "moderate",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ai_assistant",
+   "name": "AI Assistant",
+   "nameArabic": "المساعد الذكي",
+   "permissions": [
+    {
+     "id": "ai_assistant:use",
+     "name": "Use AI Assistant",
+     "nameArabic": "استخدام المساعد الذكي",
+     "description": "Use the AI assistant (chat + content generation) in this community",
+     "descriptionArabic": "استخدام المساعد الذكي (الدردشة وتوليد المحتوى) في هذا المجتمع",
+     "type": "create",
+     "assignableTo": [
+      "MODERATOR",
+      "MEMBER"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "activity_heatmap",
+   "name": "Activity Heatmap",
+   "nameArabic": "خريطة النشاط",
+   "permissions": [
+    {
+     "id": "activity_heatmap:view",
+     "name": "View Activity Heatmap",
+     "nameArabic": "عرض خريطة النشاط",
+     "description": "View members' activity-heatmap detail (the per-type breakdown / Admin view)",
+     "descriptionArabic": "عرض تفاصيل خريطة نشاط الأعضاء (التصنيف حسب نوع النشاط)",
+     "type": "moderate",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "awards",
+   "name": "Awards",
+   "nameArabic": "الأوسمة",
+   "permissions": [
+    {
+     "id": "awards:manage",
+     "name": "Manage Awards",
+     "nameArabic": "إدارة الأوسمة",
+     "description": "Full control over awards - create, edit, delete, manage categories, grant and revoke",
+     "descriptionArabic": "التحكم الكامل في الأوسمة - إنشاء وتعديل وحذف وإدارة التصنيفات ومنح الأوسمة وسحبها",
+     "type": "manage",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    },
+    {
+     "id": "awards:moderate",
+     "name": "Moderate Awards",
+     "nameArabic": "الإشراف على الأوسمة",
+     "description": "Hide and unhide awards without being able to create, edit, or grant them",
+     "descriptionArabic": "إخفاء وإظهار الأوسمة دون صلاحية إنشائها أو تعديلها أو منحها",
+     "type": "moderate",
+     "assignableTo": [
+      "MODERATOR"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "webhooks",
+   "name": "Webhooks",
+   "nameArabic": "الويب هوك",
+   "permissions": [
+    {
+     "id": "webhooks:manage",
+     "name": "Manage Webhooks",
+     "nameArabic": "إدارة الويب هوك",
+     "description": "Create, update, and delete webhook endpoints, rotate secrets, and view delivery logs",
+     "descriptionArabic": "إنشاء وتعديل وحذف نقاط الويب هوك وتدوير المفاتيح السرية وعرض سجلات التسليم",
+     "type": "manage",
+     "assignableTo": []
+    }
+   ]
+  },
+  {
+   "id": "app_store",
+   "name": "App Store",
+   "nameArabic": "متجر التطبيقات",
+   "permissions": [
+    {
+     "id": "app_store:manage",
+     "name": "Manage App Store",
+     "nameArabic": "إدارة متجر التطبيقات",
+     "description": "Install and uninstall apps — commits the community to recurring charges",
+     "descriptionArabic": "تثبيت وإلغاء تثبيت التطبيقات — يترتب عليه اشتراكات متكررة",
+     "type": "manage",
+     "assignableTo": []
+    }
+   ]
+  },
+  {
+   "id": "api_keys",
+   "name": "API Keys",
+   "nameArabic": "مفاتيح الواجهة البرمجية",
+   "permissions": [
+    {
+     "id": "api_keys:manage",
+     "name": "Manage API Keys",
+     "nameArabic": "إدارة مفاتيح الواجهة البرمجية",
+     "description": "Create, list, and revoke API keys for this community",
+     "descriptionArabic": "إنشاء وعرض وإلغاء مفاتيح الواجهة البرمجية لهذا المجتمع",
+     "type": "manage",
+     "assignableTo": []
+    }
+   ]
+  }
+ ],
+ "roleDefaults": {
+  "COMMUNITY_ADMIN": [
+   "users:manage",
+   "posts:manage",
+   "group_posts:manage",
+   "calendar:manage",
+   "albums:manage",
+   "blogs:manage",
+   "groups:manage",
+   "projects:manage",
+   "projects2:manage",
+   "notifications:manage",
+   "ads:manage",
+   "settings:manage",
+   "homepage:customize",
+   "consultants:manage",
+   "tasks:manage",
+   "discovery:manage",
+   "custom_domain:manage",
+   "custom_email:manage",
+   "support_chat:respond",
+   "templates:use",
+   "tree:manage",
+   "help_center:access",
+   "ai_assistant:use",
+   "activity_heatmap:view",
+   "awards:manage",
+   "awards:moderate",
+   "webhooks:manage",
+   "app_store:manage",
+   "api_keys:manage"
+  ],
+  "MODERATOR": [
+   "posts:create",
+   "group_posts:create",
+   "calendar:create",
+   "albums:create",
+   "blogs:create",
+   "groups:create",
+   "projects:create",
+   "users:moderate",
+   "posts:moderate",
+   "group_posts:moderate",
+   "calendar:moderate",
+   "albums:moderate",
+   "blogs:moderate",
+   "groups:moderate",
+   "projects:moderate",
+   "projects2:moderate",
+   "consultants:manage",
+   "notifications:manage",
+   "homepage:customize",
+   "settings:manage",
+   "tasks:manage",
+   "discovery:manage",
+   "custom_domain:manage",
+   "custom_email:manage",
+   "support_chat:respond",
+   "templates:use",
+   "tree:manage",
+   "help_center:access",
+   "projects:edit",
+   "projects2:create",
+   "projects2:edit",
+   "activity_heatmap:view",
+   "awards:manage"
+  ],
+  "MEMBER": []
+ }
+}
