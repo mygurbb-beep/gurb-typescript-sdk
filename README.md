@@ -430,7 +430,7 @@ strings never leak into `code`, so a `switch` on it will not break when the back
 
 ```bash
 npm install
-npm run build      # @gurb/api-types must build first — the others resolve its types
+npm run build      # builds @gurb/api-types first — the others resolve its types
 npm test
 ```
 

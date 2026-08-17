@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build -w @gurb/api-types && npm run build -w @gurb/server -w @gurb/embed",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p packages/types && tsc --noEmit -p packages/server && tsc --noEmit -p packages/embed"
   },
