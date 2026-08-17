@@ -13,8 +13,20 @@ export type { EmbedSection }
 export interface MountOptions {
   /** Where to put the iframe. A CSS selector or the element itself. */
   target: string | HTMLElement
-  /** Your community's slug on Gurb. */
-  slug: string
+  /**
+   * @deprecated Ignored, and safe to delete from your call.
+   *
+   * It named the community back when the frame URL carried it in the path. It
+   * does not any more: the token's server-side envelope already pins the
+   * communityId, so the community is decided by the credential. A slug passed
+   * alongside could only agree with the token or contradict it, and there is no
+   * useful behaviour for the contradiction.
+   *
+   * Kept as an accepted-and-ignored option only because removing it outright
+   * would break every existing call site for no benefit. It is optional, so new
+   * code should simply omit it.
+   */
+  slug?: string
   /** Which single section to render. One section per frame by design. */
   section: EmbedSection
   /**
@@ -89,8 +101,9 @@ function assertNotASecret(token: string): void {
 }
 
 export function mount(options: MountOptions): EmbedHandle {
+  // `slug` is deliberately not destructured: it is accepted and ignored, and
+  // binding it would leave an unused variable that reads like an oversight.
   const {
-    slug,
     section,
     baseUrl = DEFAULT_BASE_URL,
     initialHeight = defaultEmbedHeight(section),

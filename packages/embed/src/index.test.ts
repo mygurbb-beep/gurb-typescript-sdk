@@ -171,3 +171,27 @@ describe('the URL the frame is actually pointed at', () => {
     expect(src.split('#')[1]).toContain('token=')
   })
 })
+
+describe('the deprecated slug option', () => {
+  /**
+   * It named the community back when the frame URL carried it in the path. The
+   * token's envelope pins the communityId now, so it does nothing. Left
+   * accepted-and-ignored rather than removed, because breaking every existing
+   * call site buys nothing — but new code should omit it, so it must not be
+   * required.
+   */
+  it('is optional — omitting it mounts normally', () => {
+    document.body.innerHTML = '<div id="host"></div>'
+    const handle = mount({ target: '#host', section: 'tweets', token: 'et', baseUrl: BASE })
+    expect(handle.iframe.src).toContain('/embed#')
+  })
+
+  it('changes nothing when passed', () => {
+    document.body.innerHTML = '<div id="host"></div>'
+    const without = mount({ target: '#host', section: 'tweets', token: 'et', baseUrl: BASE }).iframe.src
+    document.body.innerHTML = '<div id="host"></div>'
+    const with_ = mount({ target: '#host', slug: 'anything', section: 'tweets', token: 'et', baseUrl: BASE }).iframe.src
+
+    expect(with_).toBe(without)
+  })
+})

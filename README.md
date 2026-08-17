@@ -16,7 +16,7 @@ Two packages, split along the one line that matters: **who is allowed to hold yo
 npm install @gurb/server @gurb/embed
 ```
 
-## Read your community's data (server-side)
+## Read and write your community (server-side)
 
 ```ts
 import { createGurbClient } from '@gurb/server'
@@ -25,6 +25,8 @@ const gurb = createGurbClient({ apiKey: process.env.GURB_API_KEY! })
 
 const community = await gurb.community.get()
 const feed = await gurb.tweets.list({ limit: 20 })
+
+await gurb.tweets.create({ content: 'أهلاً بالجميع 👋' })
 ```
 
 The key is pinned to one community — there is no `communityId` argument anywhere, and a key
@@ -32,8 +34,8 @@ can never read a community other than the one it was minted for.
 
 ## Publish content
 
-Six sections are writable: posts, events, blogs, albums, groups, consultants, projects,
-projects-2, awards, tasks — plus comments and likes on top of them.
+Ten sections are writable — posts, events, blogs, albums, groups, consultants, projects,
+projects-2, awards and tasks — plus comments and likes on top of them.
 
 ```ts
 await gurb.tweets.create({ content: 'أهلاً بالجميع 👋' })
@@ -187,7 +189,6 @@ import { mount } from '@gurb/embed'
 
 const embed = mount({
   target: '#community',
-  slug: 'my-community',
   section: 'tweets',                  // one section per frame
   fetchToken: () => fetch('/api/gurb-token', { method: 'POST' })
     .then(r => r.json())
@@ -205,10 +206,10 @@ the frame exactly as they do on mygurb.com, because the embedded user is an ordi
 
 ```ts
 // (a) The loader, with a fetch callback. Auto-resizes; the token never enters your HTML.
-mount({ target: '#community', slug: 'my-club', section: 'community', fetchToken })
+mount({ target: '#community', section: 'community', fetchToken })
 
 // (b) The loader, with a token you already minted this request.
-mount({ target: '#community', slug: 'my-club', section: 'community', token })
+mount({ target: '#community', section: 'community', token })
 
 // (c) A plain iframe string, rendered on your server. No script, no CDN, nothing to load.
 res.send(gurb.embed.iframe({ section: 'community', token }))
@@ -365,16 +366,23 @@ plus individual grants and revocations on top of it:
 
 ```ts
 const perms = await gurb.members.getPermissions('mem_2')
-// { role: 'MEMBER', effective: ['CREATE_POST', 'UPLOAD_MEDIA'], granted: [], revoked: [] }
+// { memberId: 'mem_2', userId: 'usr_9', role: 'MEMBER',
+//   effective: [], granted: [], revoked: [] }
 
 // Let one member run events without making them a moderator
 await gurb.members.updatePermissions('mem_2', { grant: ['CREATE_EVENT'] })
+// → effective: ['CREATE_EVENT'], granted: ['CREATE_EVENT']
 
 // Or take something away that the role would otherwise give
 await gurb.members.updatePermissions('mem_2', { revoke: ['CREATE_POST'] })
 
 await gurb.members.setRole('mem_2', 'MODERATOR')
 ```
+
+**`effective: []` for a plain `MEMBER` is correct, not a failure.** The role resolves to an
+*empty* permission set in Gurb — every capability is granted, none is inherited from
+membership. An empty array in the console reads like a bug and is the expected answer;
+`granted` is where a member's abilities actually come from.
 
 Grants and revocations travel in **one** request. Two calls cannot be made atomic from outside,
 and a member briefly holding a permission you meant to remove is a real window, not a theoretical
@@ -442,7 +450,7 @@ The typed clients, the error mapping and the embed mounter are implemented and t
 exercised against a stubbed transport in the unit suite and against the reference mock server
 (`examples/host-demo/mock-gurb.mjs`) over real HTTP.
 
-This package behaves identically on the wire to the [PHP SDK](https://github.com/gurb/gurb-php-sdk).
+This package behaves identically on the wire to the [PHP SDK](https://github.com/mygurbb-beep/gurb-php-sdk).
 Both were written against the same route contract, and the shared pieces — the two key patterns,
 the `X-Api-Key` header, the `{ success, data }` unwrapping, the 500-row bulk limit, the local
 validation messages — are deliberately duplicated rather than approximated, so the two SDKs cannot

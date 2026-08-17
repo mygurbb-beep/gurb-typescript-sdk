@@ -16,7 +16,6 @@ import { mount } from '@gurb/embed'
 
 const embed = mount({
   target: '#community',
-  slug: 'my-community',
   section: 'tweets',
   fetchToken: () => fetch('/api/gurb-token', { method: 'POST' })
     .then(r => r.json())

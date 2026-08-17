@@ -1,9 +1,26 @@
 # Changelog
 
-## 0.6.0
+This package and [`gurb/sdk`](https://github.com/mygurbb-beep/gurb-php-sdk) track each
+other **version for version**. They are written against one route contract and are
+meant to be interchangeable on the wire, so `@gurb/server` 1.6.0 and `gurb/sdk` 1.6.0
+speak the same API — same paths, same request bodies, same local guards, same error
+codes. They differ only in call-site shape, which is language idiom rather than
+contract.
+
+> **The jump from 0.5.0 to 1.6.0 is deliberate**, and it is the version numbers being
+> corrected rather than fifteen releases happening at once. The PHP SDK had already
+> been tagged 1.0 through 1.5 while this package was still numbered 0.x, so the two
+> had drifted apart despite shipping the same contract. The entries below 1.6.0
+> describe releases that were never published to npm; 1.6.0 is the first.
+
+## 1.6.0
 
 Every section Gurb has, plus the two things that decide who owns what you create.
-Matches the PHP SDK's 1.5.0 on the wire.
+Matches the PHP SDK's 1.6.0 on the wire.
+
+**The first release published to npm.** Everything below this line was developed in the
+repository and never had a package on the registry, so there is no upgrade path to
+worry about — install it fresh.
 
 ### Added — the sections that were missing
 
@@ -62,9 +79,12 @@ reach three it could not see at all.
   the same fix on the server side, and both are now pinned by boundary tests that
   assert the shape rather than the code that produces it.
 
-  `buildUrl()`'s `slug` is now optional and unused, kept so existing call sites
-  still compile. The token's server-side envelope already carries the
-  communityId, so a slug in the path could only agree or contradict.
+  `slug` is now **optional and ignored** on both `buildUrl()` and `mount()`,
+  kept so existing call sites still compile. The token's server-side envelope
+  already carries the communityId, so a slug in the path could only agree with
+  it or contradict it. It was still marked *required* on `MountOptions` — a
+  mandatory argument that does nothing, which reads as a choice the caller made
+  when it is not. Omit it in new code.
 
 - **`examples/host-demo` modelled the same wrong route**, which is exactly why
   the integration suite never caught it. A mock that agrees with your bug proves
