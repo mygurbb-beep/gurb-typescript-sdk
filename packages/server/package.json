@@ -1,6 +1,6 @@
 {
   "name": "@gurb/server",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Server-side Gurb SDK. Holds your API key — never import this in browser code.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -22,7 +22,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@gurb/api-types": "^1.6.0"
+    "@gurb/api-types": "^1.7.0"
   },
   "engines": {
     "node": ">=20"

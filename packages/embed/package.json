@@ -1,6 +1,6 @@
 {
   "name": "@gurb/embed",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Browser SDK for embedding a Gurb community section. Never handles secret keys.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -23,7 +23,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@gurb/api-types": "^1.6.0"
+    "@gurb/api-types": "^1.7.0"
   },
   "sideEffects": false,
   "license": "MIT",

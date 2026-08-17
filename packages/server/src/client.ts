@@ -49,7 +49,6 @@ import {
   type Project,
   type PaginationParams,
   type Permission,
-  type PermissionCatalog,
   type SidebarConfig,
   type Task,
   type TaskDetail,
@@ -1222,45 +1221,6 @@ export class GurbClient {
 
       return this.#http.request('POST', 'sdk/members/bulk', { body: { members } })
     },
-  }
-
-  /**
-   * What every permission MEANS — its label, description and category.
-   *
-   * THE GAP THIS CLOSES: `members.getPermissions()` answers with bare
-   * identifiers and nothing else. Correct for deciding what somebody may do,
-   * useless for showing anybody — so an integration that rendered them put raw
-   * SCREAMING_SNAKE_CASE in front of its users, in every language, with no way
-   * through this SDK to do better. Gurb's own web app never had that problem
-   * because it calls this endpoint; the SDK simply never exposed it.
-   *
-   * No permission is needed and there is no feature gate: the catalogue
-   * describes what the PLATFORM defines, not what any community or member
-   * holds, so there is nothing here to leak.
-   */
-  permissions = {
-    /**
-     * The whole catalogue, with labels in both languages.
-     *
-     * ⚠️ CACHE THIS. It is a catalogue, not per-member state — it changes when
-     * the PLATFORM ships a new permission, a few times a year. The payload
-     * carries every permission and every label, so the cost is real and
-     * identical on every call. Fetching it once per member while rendering a
-     * list is the single easiest way to make a permissions screen crawl.
-     *
-     * ```ts
-     * const labels = permissionLabels(await gurb.permissions.catalog())  // once
-     * const mine = await gurb.members.getPermissions(memberId)           // per member
-     * mine.effective.map((id) => labels[id] ?? id)
-     * ```
-     *
-     * @param role Narrow to what may be assigned to this role — admin-only
-     *             permissions disappear and `roleDefaults` is populated. Only
-     *             MODERATOR and MEMBER mean anything; anything else is ignored
-     *             server-side and answers with the full list.
-     */
-    catalog: (role?: CommunityRole): Promise<PermissionCatalog> =>
-      this.#http.request('GET', 'permissions/available', { query: { role } }),
   }
 
   // ─── Embed ─────────────────────────────────────────────────────────────────
