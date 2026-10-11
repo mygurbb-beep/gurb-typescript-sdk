@@ -25,6 +25,17 @@ const embed = mount({
 embed.destroy() // on unmount
 ```
 
+When a host-started session reaches its 60-minute limit, the frame asks for a new
+token: `fetchToken` is called again and the frame reloads on its own. If that
+fails, `onSessionExpired` is called once:
+
+```ts
+mount({
+  // ...
+  onSessionExpired: () => showSignInAgainMessage(),
+})
+```
+
 Also available as a UMD build for pages that do not use npm:
 
 ```html

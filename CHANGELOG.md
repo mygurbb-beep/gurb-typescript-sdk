@@ -13,6 +13,31 @@ contract.
 > had drifted apart despite shipping the same contract. The entries below 1.6.0
 > describe releases that were never published to npm; 1.6.0 is the first.
 
+## @gurb/embed 1.8.0
+
+Browser package only. `@gurb/server` and `@gurb/api-types` are unchanged at 1.7.0,
+so the PHP SDK has nothing to match.
+
+### Added — the frame renews an expired session
+
+Gurb now ends a session that a host started with an embed token after 60 minutes,
+absolute. When that happens, the Gurb page inside the frame posts
+`{ source: 'gurb-embed', type: 'session-expired' }` to its parent, and `mount()`
+answers it: it calls your `fetchToken` again and reloads the frame with the new
+token. The member sees a short reload, not a sign-in screen.
+
+- One renewal at a time, at most one every 30 seconds, and none after `destroy()`,
+  so a host backend that keeps failing cannot cause a loop.
+- New option **`onSessionExpired`**: called once when renewal fails (`fetchToken`
+  threw, or the new token could not be applied). Use it to show your own
+  "sign in again" message.
+- The message is accepted only from the mounted iframe on the Gurb origin, like
+  every other frame message.
+
+Needs Gurb's server side of the 60-minute session (rolled out with the RIYADAH
+integration). Against an older Gurb the frame never sends the message, and nothing
+changes.
+
 ## 1.6.0
 
 Every section Gurb has, plus the two things that decide who owns what you create.

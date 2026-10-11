@@ -1,6 +1,6 @@
 {
   "name": "@gurb/embed",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Browser SDK for embedding a Gurb community section. Never handles secret keys.",
   "type": "module",
   "main": "./dist/index.cjs",
