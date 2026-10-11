@@ -195,3 +195,52 @@ describe('the deprecated slug option', () => {
     expect(with_).toBe(without)
   })
 })
+
+describe('session expiry (the 60-minute cap)', () => {
+  const expired = { source: 'gurb-embed', type: 'session-expired' }
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+  it('reloads the frame with a fresh token from fetchToken', async () => {
+    const fetchToken = vi.fn().mockResolvedValueOnce('et_first').mockResolvedValueOnce('et_second')
+    const { iframe } = mount({ target: '#host', section: 'community', fetchToken, baseUrl: BASE })
+    await flush()
+    expect(iframe.src).toContain('token=et_first')
+
+    postFromFrame(iframe, expired)
+    await flush()
+
+    expect(fetchToken).toHaveBeenCalledTimes(2)
+    expect(iframe.src).toContain('token=et_second')
+  })
+
+  it('ignores an expiry message from an origin that is not Gurb', async () => {
+    const fetchToken = vi.fn().mockResolvedValue('et_x')
+    const { iframe } = mount({ target: '#host', section: 'community', fetchToken, baseUrl: BASE })
+    await flush()
+    postFromFrame(iframe, expired, 'https://evil.test')
+    await flush()
+    expect(fetchToken).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not loop when a fresh session expires again at once', async () => {
+    const onError = vi.fn()
+    const fetchToken = vi.fn().mockResolvedValue('et_y')
+    const { iframe } = mount({ target: '#host', section: 'community', fetchToken, onError, baseUrl: BASE })
+    await flush()
+
+    postFromFrame(iframe, expired)
+    await flush()
+    postFromFrame(iframe, expired)
+    await flush()
+
+    expect(fetchToken).toHaveBeenCalledTimes(2) // mount + one renewal, not a third
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/not retrying/) }))
+  })
+
+  it('with a fixed token, calls onSessionExpired instead of guessing', () => {
+    const onSessionExpired = vi.fn()
+    const { iframe } = mount({ target: '#host', section: 'community', token: 'et_fixed', onSessionExpired, baseUrl: BASE })
+    postFromFrame(iframe, expired)
+    expect(onSessionExpired).toHaveBeenCalledTimes(1)
+  })
+})

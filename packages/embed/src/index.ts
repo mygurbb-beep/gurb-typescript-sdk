@@ -35,6 +35,13 @@ export interface MountOptions {
    * Prefer the callback: tokens live ~120 seconds and are single-use, so a
    * token baked into server-rendered HTML is often already dead by the time a
    * user gets to it. The callback lets the frame ask for a fresh one.
+   *
+   * It is also how a frame RENEWS: a Gurb session started from an embed token
+   * ends after 60 minutes (absolute), and the frame then reports
+   * `session-expired`. With `fetchToken`, the frame is reloaded with a fresh
+   * token automatically — your backend decides again whether this user may
+   * still be in the community. With a fixed `token`, `onSessionExpired` (or,
+   * failing that, `onError`) is called instead.
    */
   token?: string
   fetchToken?: () => Promise<string>
@@ -54,6 +61,11 @@ export interface MountOptions {
   autoResize?: boolean
   onReady?: () => void
   onError?: (error: Error) => void
+  /**
+   * The frame's Gurb session ended and could not be renewed automatically
+   * (no `fetchToken`). Mint a new token and mount again.
+   */
+  onSessionExpired?: () => void
 }
 
 export interface EmbedHandle {
@@ -65,10 +77,13 @@ export interface EmbedHandle {
 
 const DEFAULT_BASE_URL = 'https://mygurb.com'
 
+/** See renewSession: a session that expires again this soon is not retried. */
+const RENEW_MIN_INTERVAL_MS = 30_000
+
 /** A message from the frame. Anything not matching this shape is ignored. */
 interface FrameMessage {
   source: 'gurb-embed'
-  type: 'ready' | 'resize' | 'error'
+  type: 'ready' | 'resize' | 'error' | 'session-expired'
   height?: number
   message?: string
 }
@@ -147,7 +162,62 @@ export function mount(options: MountOptions): EmbedHandle {
     }
     if (data.type === 'error') {
       options.onError?.(new Error(data.message ?? 'Gurb embed failed'))
+      return
     }
+    if (data.type === 'session-expired') {
+      renewSession()
+    }
+  }
+
+  /**
+   * The frame's session reached its fixed end (60 minutes). Ask the host's
+   * backend for a new token and reload the frame — the host decides AGAIN
+   * whether this user may still be here, which is the whole point of the cap.
+   *
+   * Two guards. One renewal at a time (a burst of messages is one expiry). And
+   * no renewal within RENEW_MIN_INTERVAL_MS of the last one: a fresh session
+   * that expires immediately means something is wrong (clock, a revoked user,
+   * a broken backend), and looping would hammer the host's token endpoint.
+   */
+  let renewing = false
+  let lastRenewalAt = 0
+  let destroyed = false
+  let reportedExpiry = false
+  const renewSession = (): void => {
+    if (destroyed) return
+    if (!options.fetchToken) {
+      // Said once: with a fixed token nothing here can change until the host
+      // mounts again, so repeating it would only spam the callback.
+      if (reportedExpiry) return
+      reportedExpiry = true
+      if (options.onSessionExpired) options.onSessionExpired()
+      else options.onError?.(new Error('Gurb embed session expired. Pass fetchToken to renew it automatically.'))
+      return
+    }
+    if (renewing) return
+    const now = Date.now()
+    if (now - lastRenewalAt < RENEW_MIN_INTERVAL_MS) {
+      options.onError?.(new Error('Gurb embed session expired again right after renewal; not retrying.'))
+      return
+    }
+    renewing = true
+    lastRenewalAt = now
+    options.fetchToken().then(
+      (token) => {
+        renewing = false
+        if (destroyed) return
+        try {
+          applyToken(token)
+        } catch (cause) {
+          // e.g. assertNotASecret: the host's fetchToken returned an API key.
+          options.onError?.(cause instanceof Error ? cause : new Error(String(cause)))
+        }
+      },
+      (cause: unknown) => {
+        renewing = false
+        options.onError?.(cause instanceof Error ? cause : new Error(String(cause)))
+      },
+    )
   }
 
   window.addEventListener('message', onMessage)
@@ -199,6 +269,7 @@ export function mount(options: MountOptions): EmbedHandle {
   return {
     iframe,
     destroy(): void {
+      destroyed = true
       window.removeEventListener('message', onMessage)
       iframe.remove()
     },
