@@ -42,6 +42,12 @@ const KNOWN_CODES = new Set<string>([
   'NOT_FOUND',
   'RATE_LIMITED',
   'VALIDATION_ERROR',
+  'JOIN_THROUGH_HOST_ONLY',
+  'HOST_MEMBER_BLOCKED',
+  'MEMBER_NOT_ACTIVE',
+  'ACCOUNT_NOT_USABLE',
+  'EXTERNAL_IDENTITY_MANUAL_LINK_REQUIRED',
+  'EXTERNAL_IDENTITY_INVALID_INPUT',
 ])
 
 /**
@@ -54,7 +60,12 @@ const KNOWN_CODES = new Set<string>([
  */
 export function toApiError(status: number, body: unknown): GurbApiError {
   const parsed = (body ?? {}) as GurbErrorBody
-  const declared = typeof parsed.error === 'string' ? parsed.error : undefined
+  // `error` first, then `code`: Gurb's service errors carry the stable code in
+  // `code` only (e.g. JOIN_THROUGH_HOST_ONLY thrown from a service). Either way
+  // only a code we KNOW becomes `code` — anything else stays in `message`.
+  const fromError = typeof parsed.error === 'string' && KNOWN_CODES.has(parsed.error) ? parsed.error : undefined
+  const fromCode = typeof parsed.code === 'string' && KNOWN_CODES.has(parsed.code) ? parsed.code : undefined
+  const declared = fromError ?? fromCode ?? (typeof parsed.error === 'string' ? parsed.error : undefined)
 
   let code: GurbErrorCode = 'UNKNOWN'
   if (declared && KNOWN_CODES.has(declared)) {

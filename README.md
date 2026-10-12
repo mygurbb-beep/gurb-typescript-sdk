@@ -415,6 +415,61 @@ Up to 500 per call. Longer lists are rejected locally rather than sent — a req
 likely to die at a proxy timeout with no way to know which half landed. A duplicate id inside one
 batch is rejected too: it would race against itself server-side and the winner would be arbitrary.
 
+## Partner events (Partner Sign-In)
+
+For a **host** site whose members sign in to a Gurb community through it (RIYADAH is the first):
+tell Gurb, by signed events, who may still be inside and what their name, email and photo are.
+This uses the community's **events secret** (`whsec_…`, handed over by a Gurb super admin) —
+a different credential from the API key, and the class refuses an API key.
+
+```ts
+import { GurbPartnerEvents } from '@gurb/server'
+
+const events = new GurbPartnerEvents({
+  communityId: process.env.GURB_COMMUNITY_ID!,
+  secret: process.env.GURB_EVENTS_SECRET!,      // during a rotation: [newest, previous]
+  baseUrl: 'https://community.example.com',     // default https://mygurb.com
+})
+
+// 1. Build — pure, plain data. Save it in YOUR outbox, in the same DB transaction as the change.
+const evt = events.accessChanged({ sub: member.externalId, stateVersion: member.version, access: 'blocked' })
+await db.outbox.insert({ id: evt.id, payload: JSON.stringify(evt) })
+
+// 2. Send — from your outbox worker. Never throws for HTTP or network failures.
+const result = await events.send(JSON.parse(row.payload))
+if (result.outcome === 'delivered') markDelivered(row)          // 2xx: applied, duplicate, stale or unknown member
+else if (result.outcome === 'retry') scheduleRetry(row)        // 408/429/5xx/network: back off and try again
+else alertHuman(row, result.code)                               // 400/401/403/404: retrying cannot help
+```
+
+| Builder | When |
+|---|---|
+| `accessChanged({ sub, stateVersion, access })` | every change to a member's access (`'allowed'` / `'blocked'`) |
+| `sessionRevoked({ sub, stateVersion })` | a password reset or email change ended their login on your side |
+| `memberUpdated({ sub, stateVersion, name?, email?, avatarUrl?, locale? })` | a shared identity field changed — **a full replacement**: an omitted email moves the member to a placeholder, an omitted photo removes it |
+| `memberDeleted({ sub, stateVersion, requestedAt? })` | an approved erasure request — irreversible |
+| `snapshot({ members, snapshotId?, generatedAt?, pageSize? })` | nightly: the FULL list, returned as pages of ≤ 500; send every page |
+| `ping({ message? })` | "Test connection" |
+
+What Gurb does with them:
+
+- **Newest `stateVersion` wins** per member, so delivery may be duplicated and out of order. Give
+  each member a monotonic version (a change timestamp in ms works).
+- **`send()` never retries on its own.** Retries belong to your outbox (back-off for up to 72 h);
+  every send re-signs with a fresh timestamp while `id` and body stay identical, so Gurb applies a
+  retried event exactly once.
+- **The snapshot blocks the absent.** Once every page of one snapshot has arrived, members Gurb
+  knows who are missing from it are blocked — so list every member account. If that would block
+  more than 10% of them, Gurb blocks nobody and waits for a super admin; a change of more than 1%
+  raises an alert on Gurb's side either way.
+- **Builders refuse what Gurb would refuse** before anything is sent — the usual local-guard shape,
+  `GurbApiError` with `VALIDATION_ERROR` and `status: 0`: an
+  empty or over-long `sub`, a negative or fractional version, control characters, a placeholder
+  email, a photo that is not `https://` on port 443, a member listed twice in a snapshot.
+
+A member that a host blocked is refused by `embed.createSession` with `HOST_MEMBER_BLOCKED` —
+show them "membership inactive", not an error.
+
 ## Errors
 
 Everything throws `GurbApiError` with a stable `code`:
@@ -433,6 +488,17 @@ try {
 
 Messages are English by design — your app owns translation. Unrecognised backend error
 strings never leak into `code`, so a `switch` on it will not break when the backend adds one.
+
+Partner Sign-In communities add these, mostly from `embed.createSession` and `members.bulkUpsert`:
+
+| `code` | Meaning |
+|---|---|
+| `JOIN_THROUGH_HOST_ONLY` | the community admits members only through its host site, and this key is not the host's |
+| `HOST_MEMBER_BLOCKED` | the host blocked this member — show "membership inactive" |
+| `MEMBER_NOT_ACTIVE` | the member was removed or banned in this community |
+| `ACCOUNT_NOT_USABLE` | the Gurb account behind the member is deactivated or expired |
+| `EXTERNAL_IDENTITY_MANUAL_LINK_REQUIRED` | a concurrent request claimed the same identity — retry once |
+| `EXTERNAL_IDENTITY_INVALID_INPUT` | the `externalUserId` or `email` cannot be acted on |
 
 ## Development
 

@@ -13,6 +13,38 @@ contract.
 > had drifted apart despite shipping the same contract. The entries below 1.6.0
 > describe releases that were never published to npm; 1.6.0 is the first.
 
+## @gurb/server 1.8.0 + @gurb/api-types 1.8.0 (gurb/sdk 1.8.0)
+
+`@gurb/embed` stays at 1.8.0 (unchanged). The PHP SDK ships the same contract as `gurb/sdk` 1.8.0.
+
+### Added — partner events (Gurb Partner Sign-In, events contract v1)
+
+`GurbPartnerEvents` builds and sends the signed events a **host** site uses to keep a Gurb
+community in step with its own members: `accessChanged`, `sessionRevoked`, `memberUpdated`,
+`memberDeleted`, `snapshot` (split into pages of ≤ 500 under one `snapshot_id`) and `ping`.
+
+- Keyed by the community's **events secret** (`whsec_…`); an API key is refused at construction,
+  as the existing clients refuse each other's keys. Two secrets during a rotation.
+- Standard Webhooks signing with `node:crypto` — no new dependency. Pinned by a test vector
+  produced with the `standardwebhooks` library Gurb's receiver verifies with.
+- Build and send are separate on purpose: a built event is plain data for the host's outbox;
+  `send()` re-signs with a fresh timestamp and reports `delivered` / `rejected` / `retry`
+  without ever retrying itself (the contract puts retries in the host's outbox).
+- Builders apply the receiver's own limits and refuse before anything is sent, as every local
+  guard does: `GurbApiError` with `VALIDATION_ERROR` and `status: 0`.
+
+### Added — Partner Sign-In error codes
+
+`JOIN_THROUGH_HOST_ONLY`, `HOST_MEMBER_BLOCKED`, `MEMBER_NOT_ACTIVE`, `ACCOUNT_NOT_USABLE`,
+`EXTERNAL_IDENTITY_MANUAL_LINK_REQUIRED`, `EXTERNAL_IDENTITY_INVALID_INPUT` are now known
+`GurbErrorCode` values.
+
+### Fixed — a refusal whose code is only in `code` mapped to a generic one
+
+Some Gurb errors carry their stable code in `code` rather than `error` (for example
+`JOIN_THROUGH_HOST_ONLY` raised from a service). `GurbApiError.code` now reads `error`, then
+`code` — still only ever a code this SDK knows.
+
 ## @gurb/embed 1.8.0
 
 Browser package only. `@gurb/server` and `@gurb/api-types` are unchanged at 1.7.0,

@@ -1180,12 +1180,28 @@ export type GurbErrorCode =
   | 'NOT_FOUND'
   | 'RATE_LIMITED'
   | 'VALIDATION_ERROR'
+  // Partner Sign-In (1.8.0) — refusals of an embed session / member import in a
+  // community that admits members only through its host site.
+  /** The community admits members only through its host site, and this key is not the host's. */
+  | 'JOIN_THROUGH_HOST_ONLY'
+  /** The host blocked this member (an access event or the nightly snapshot): show "membership inactive". */
+  | 'HOST_MEMBER_BLOCKED'
+  /** The member was removed or banned in this community. */
+  | 'MEMBER_NOT_ACTIVE'
+  /** The Gurb account behind this member is deactivated or expired. */
+  | 'ACCOUNT_NOT_USABLE'
+  /** A competing request claimed the same identity at the same moment — retry once. */
+  | 'EXTERNAL_IDENTITY_MANUAL_LINK_REQUIRED'
+  /** The identity in the request cannot be acted on (bad externalUserId / email). */
+  | 'EXTERNAL_IDENTITY_INVALID_INPUT'
   | 'NETWORK_ERROR'
   | 'UNKNOWN'
 
 export interface GurbErrorBody {
   success: false
   error?: string
+  /** Some refusals carry their stable code here instead of in `error`. */
+  code?: string
   message?: string
   requestId?: string
 }
