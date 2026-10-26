@@ -106,6 +106,29 @@ pays for.
   rows, can name every member in one call and notifies each of them. That needs its own endpoint,
   not a field.
 
+## Remind attendees and invite members (1.9.0)
+
+```ts
+// «إرسال تذكير» — the key's user needs calendar:manage or calendar:moderate
+const r = await gurb.events.sendReminder('ev_1', { channels: ['push', 'inApp'] }) // or 'email', or all three
+r.recipients   // attendees addressed (never the key's user)
+r.emailQueued  // e-mails are queued, not yet delivered
+
+// «دعوة للمشاهدة» — any member who can open the item
+const { invited, skipped } = await gurb.contentInvitations.create({
+  resourceType: 'album', resourceId: 'al_1', inviteeIds: ['u_2', 'u_3'], message: 'شوفوا الصور',
+})
+// skipped[i].reason: 'SELF' | 'ALREADY_INVITED' | 'UNAVAILABLE'
+await gurb.contentInvitations.listMine({ resourceType: 'album', resourceId: 'al_1' })
+```
+
+- One manual reminder per event per 10 minutes → `EVENT_REMINDER_COOLDOWN` (429, **not** retryable).
+  A draft, cancelled, finished or started event → `EVENT_NOT_REMINDABLE` / `EVENT_ALREADY_STARTED`;
+  no attendees → `EVENT_REMINDER_NO_RECIPIENTS`.
+- A person is invited to an item **once**, by anyone. `UNAVAILABLE` deliberately covers «not a member»,
+  «hidden from your member directory» and «cannot open the item», so ids cannot be probed.
+  20 invitees per call; 100 invitations per user per day → `INVITES_DAILY_LIMIT` (not retryable).
+
 ## Customize the community
 
 ```ts

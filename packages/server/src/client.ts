@@ -65,6 +65,11 @@ import {
   type UpdateProjectInput,
   type UpdateSidebarInput,
   type UpdateTaskInput,
+  type ContentInvitationsResult,
+  type ContentInviteType,
+  type CreateContentInvitationsInput,
+  type EventReminderResult,
+  type SendEventReminderInput,
 } from '@gurb/api-types'
 import { GurbApiError } from './errors.js'
 import { assertServerEnvironment, assertValidApiKey } from './key.js'
@@ -377,6 +382,33 @@ export class GurbClient {
 
     delete: (eventId: string): Promise<{ id: string; deleted: true }> =>
       this.#http.request('DELETE', `sdk/events/${encodeURIComponent(eventId)}`),
+
+    /**
+     * «إرسال تذكير» — remind the event's attendees now, through the channels you pick.
+     *
+     * The key's user needs `calendar:manage` or `calendar:moderate`. One manual reminder per
+     * event per 10 minutes (`EVENT_REMINDER_COOLDOWN`); a draft, cancelled, finished or started
+     * event is refused. E-mails are queued: `emailQueued` is not a delivery count.
+     */
+    sendReminder: (eventId: string, input: SendEventReminderInput): Promise<EventReminderResult> =>
+      this.#http.request('POST', `sdk/events/${encodeURIComponent(eventId)}/reminders`, { body: input }),
+  }
+
+  /**
+   * «دعوة للمشاهدة» — invite members to look at a blog post, an album or an event.
+   *
+   * No permission is needed, but the key's user must be able to open the item, and each invitee
+   * too (others come back `UNAVAILABLE`). A person is invited to an item once, by anyone. The
+   * item's section must be on the plan (`FEATURE_NOT_AVAILABLE`). 20 invitees per call, 100 per
+   * user per day (`INVITES_DAILY_LIMIT`).
+   */
+  contentInvitations = {
+    create: (input: CreateContentInvitationsInput): Promise<ContentInvitationsResult> =>
+      this.#http.request('POST', 'sdk/content-invitations', { body: input }),
+
+    /** The user ids the key's user already invited to this item. */
+    listMine: (params: { resourceType: ContentInviteType; resourceId: string }): Promise<{ inviteeIds: string[] }> =>
+      this.#http.request('GET', 'sdk/content-invitations/mine', { query: { ...params } }),
   }
 
   /** Requires the `blogs` feature on the plan. Deleting is a SOFT delete upstream. */

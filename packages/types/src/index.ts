@@ -325,6 +325,57 @@ export interface CreateEventInput {
 
 export type UpdateEventInput = Partial<CreateEventInput>
 
+// ─── Event reminders (1.9.0) ─────────────────────────────────────────────────
+
+/**
+ * Where a manual event reminder goes: `inApp` = the bell inside Gurb, `push` = the
+ * attendees' phones (FCM), `email` = the event e-mail in the community's brand.
+ */
+export type ReminderChannel = 'email' | 'push' | 'inApp'
+
+export interface SendEventReminderInput {
+  /** One, several or all three. Order does not matter; duplicates collapse. */
+  channels: ReminderChannel[]
+}
+
+export interface EventReminderResult {
+  /** Attendees addressed: PAID ticket holders of a paid event, or members «going» to a free one — never the key's user. */
+  recipients: number
+  channels: ReminderChannel[]
+  /** Bell notifications stored (0 without `inApp`). */
+  inApp: number
+  /** Attendees whose push was handed to FCM (0 without `push`). */
+  push: number
+  /** E-mails QUEUED — they go out in the background, a few per second. Not a delivery count. */
+  emailQueued: number
+}
+
+// ─── Content invitations (1.9.0) ─────────────────────────────────────────────
+
+/** The sections an invitation can point at. */
+export type ContentInviteType = 'blog' | 'album' | 'event'
+
+export interface CreateContentInvitationsInput {
+  resourceType: ContentInviteType
+  resourceId: string
+  /** User ids (not member ids). 1–20 per call. */
+  inviteeIds: string[]
+  /** Up to 300 characters, shown with the invitation. */
+  message?: string
+}
+
+/**
+ * Why one invitee was not invited. `UNAVAILABLE` covers «not a member», «hidden from the
+ * caller's member directory» and «cannot open the item» on purpose — one reason, so ids cannot
+ * be probed for membership.
+ */
+export type ContentInviteSkipReason = 'SELF' | 'ALREADY_INVITED' | 'UNAVAILABLE'
+
+export interface ContentInvitationsResult {
+  invited: string[]
+  skipped: Array<{ userId: string; reason: ContentInviteSkipReason }>
+}
+
 export interface CreateBlogInput {
   title: string
   /** Rendered HTML. The platform stores it as sent. */
@@ -1194,6 +1245,19 @@ export type GurbErrorCode =
   | 'EXTERNAL_IDENTITY_MANUAL_LINK_REQUIRED'
   /** The identity in the request cannot be acted on (bad externalUserId / email). */
   | 'EXTERNAL_IDENTITY_INVALID_INPUT'
+  // Event reminders + content invitations (1.9.0). None of these is helped by retrying now.
+  /** A manual reminder for this event went out less than 10 minutes ago. */
+  | 'EVENT_REMINDER_COOLDOWN'
+  /** The event is a draft, cancelled or completed. */
+  | 'EVENT_NOT_REMINDABLE'
+  /** The event has already started. */
+  | 'EVENT_ALREADY_STARTED'
+  /** Nobody is attending the event yet. */
+  | 'EVENT_REMINDER_NO_RECIPIENTS'
+  /** The key's user sent 100 invitations in the last 24 hours. */
+  | 'INVITES_DAILY_LIMIT'
+  /** The key's user is restricted (suspended, or blocked from posting) in this community. */
+  | 'RESTRICTION_BLOCKED'
   | 'NETWORK_ERROR'
   | 'UNKNOWN'
 

@@ -13,6 +13,27 @@ contract.
 > had drifted apart despite shipping the same contract. The entries below 1.6.0
 > describe releases that were never published to npm; 1.6.0 is the first.
 
+## @gurb/server 1.9.0 + @gurb/api-types 1.9.0 (gurb/sdk 1.9.0)
+
+`@gurb/embed` stays at 1.8.0 (unchanged). The PHP SDK ships the same contract as `gurb/sdk` 1.9.0.
+
+### Added — event reminders and content invitations
+
+- `events.sendReminder(eventId, { channels })` → `POST /api/sdk/events/{id}/reminders` — «إرسال تذكير»:
+  remind the event's attendees now by `email`, `push` and/or `inApp`. Same permission as Gurb's web app
+  (`calendar:manage | calendar:moderate`); one manual reminder per event per 10 minutes.
+- `contentInvitations.create({ resourceType, resourceId, inviteeIds, message? })` →
+  `POST /api/sdk/content-invitations` and `contentInvitations.listMine(...)` →
+  `GET /api/sdk/content-invitations/mine` — «دعوة للمشاهدة» for a blog post, an album or an event.
+  No permission (any member who can open the item); once per invitee per item; 20 per call, 100 per day.
+- Types: `ReminderChannel`, `SendEventReminderInput`, `EventReminderResult`, `ContentInviteType`,
+  `CreateContentInvitationsInput`, `ContentInviteSkipReason`, `ContentInvitationsResult`.
+- Error codes: `EVENT_REMINDER_COOLDOWN`, `EVENT_NOT_REMINDABLE`, `EVENT_ALREADY_STARTED`,
+  `EVENT_REMINDER_NO_RECIPIENTS`, `INVITES_DAILY_LIMIT`, `RESTRICTION_BLOCKED` — none retryable, so the
+  two 429s no longer read as a generic `RATE_LIMITED` a client would retry.
+
+Requires a Gurb backend with feat/remind-invite deployed (the `/api/sdk` routes above).
+
 ## @gurb/server 1.8.0 + @gurb/api-types 1.8.0 (gurb/sdk 1.8.0)
 
 `@gurb/embed` stays at 1.8.0 (unchanged). The PHP SDK ships the same contract as `gurb/sdk` 1.8.0.

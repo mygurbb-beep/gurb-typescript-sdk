@@ -629,3 +629,60 @@ describe('sidebar and advertisements', () => {
     expect(calls[0]!.url).toBe('https://x.test/api/sdk/customization/advertisements/active')
   })
 })
+
+describe('event reminders + content invitations (1.9.0)', () => {
+  it('events.sendReminder POSTs the channels to the event', async () => {
+    const data = { recipients: 2, channels: ['push', 'inApp'], inApp: 2, push: 2, emailQueued: 0 }
+    const { fn, calls } = stubFetch(200, { success: true, data })
+    const client = createGurbClient({ apiKey: KEY, baseUrl: 'https://x.test', fetch: fn })
+
+    await expect(client.events.sendReminder('ev 1', { channels: ['push', 'inApp'] })).resolves.toEqual(data)
+
+    expect(calls[0]!.url).toBe('https://x.test/api/sdk/events/ev%201/reminders')
+    expect(calls[0]!.init.method).toBe('POST')
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ channels: ['push', 'inApp'] })
+  })
+
+  it('a reminder cooldown is its own code and is NOT retryable', async () => {
+    const { fn } = stubFetch(429, { success: false, code: 'EVENT_REMINDER_COOLDOWN', message: 'A reminder … was sent a few minutes ago' })
+    const client = createGurbClient({ apiKey: KEY, fetch: fn })
+    const err = await client.events.sendReminder('e1', { channels: ['email'] }).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(GurbApiError)
+    expect(err).toMatchObject({ code: 'EVENT_REMINDER_COOLDOWN', status: 429 })
+    expect((err as GurbApiError).isRetryable).toBe(false)
+  })
+
+  it('maps the 409 refusals to stable codes', async () => {
+    for (const code of ['EVENT_NOT_REMINDABLE', 'EVENT_ALREADY_STARTED', 'EVENT_REMINDER_NO_RECIPIENTS']) {
+      const { fn } = stubFetch(409, { success: false, code, message: 'refused' })
+      const client = createGurbClient({ apiKey: KEY, fetch: fn })
+      await expect(client.events.sendReminder('e1', { channels: ['inApp'] })).rejects.toMatchObject({ code, status: 409 })
+    }
+  })
+
+  it('contentInvitations.create POSTs the request and returns invited + skipped', async () => {
+    const data = { invited: ['u2'], skipped: [{ userId: 'u3', reason: 'UNAVAILABLE' }] }
+    const { fn, calls } = stubFetch(200, { success: true, data })
+    const client = createGurbClient({ apiKey: KEY, baseUrl: 'https://x.test', fetch: fn })
+    const input = { resourceType: 'album' as const, resourceId: 'a1', inviteeIds: ['u2', 'u3'], message: 'شوفوا' }
+
+    await expect(client.contentInvitations.create(input)).resolves.toEqual(data)
+    expect(calls[0]!.url).toBe('https://x.test/api/sdk/content-invitations')
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual(input)
+  })
+
+  it('contentInvitations.listMine sends the item in the query', async () => {
+    const { fn, calls } = stubFetch(200, { success: true, data: { inviteeIds: ['u2'] } })
+    const client = createGurbClient({ apiKey: KEY, baseUrl: 'https://x.test', fetch: fn })
+    await expect(client.contentInvitations.listMine({ resourceType: 'blog', resourceId: 'b1' })).resolves.toEqual({ inviteeIds: ['u2'] })
+    expect(calls[0]!.url).toBe('https://x.test/api/sdk/content-invitations/mine?resourceType=blog&resourceId=b1')
+  })
+
+  it('the daily invitation limit is its own code and is NOT retryable', async () => {
+    const { fn } = stubFetch(429, { success: false, code: 'INVITES_DAILY_LIMIT', message: 'Daily invitation limit reached' })
+    const client = createGurbClient({ apiKey: KEY, fetch: fn })
+    const err = await client.contentInvitations.create({ resourceType: 'blog', resourceId: 'b1', inviteeIds: ['u2'] }).catch((e: unknown) => e)
+    expect(err).toMatchObject({ code: 'INVITES_DAILY_LIMIT' })
+    expect((err as GurbApiError).isRetryable).toBe(false)
+  })
+})
