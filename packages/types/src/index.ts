@@ -333,14 +333,30 @@ export type UpdateEventInput = Partial<CreateEventInput>
  */
 export type ReminderChannel = 'email' | 'push' | 'inApp'
 
+/**
+ * WHO a manual reminder goes to (1.9.0). `going` (the default) = PAID ticket holders of a paid event,
+ * or members «going» to a free one; `interested` = members who pressed «interested» and are not
+ * confirmed; `all` = every approved member of the community; `members` = the `userIds` you pick
+ * (non-members among them are dropped silently).
+ */
+export type ReminderAudience = 'going' | 'interested' | 'all' | 'members'
+
 export interface SendEventReminderInput {
   /** One, several or all three. Order does not matter; duplicates collapse. */
   channels: ReminderChannel[]
+  /** Omitted → `going`, the pre-1.9 behaviour. */
+  audience?: ReminderAudience
+  /** Required with `audience: 'members'` — 1 to 200 user ids (not member ids). Ignored otherwise. */
+  userIds?: string[]
+  /** Up to 300 characters, shown under the reminder in the bell, the push and the e-mail. */
+  message?: string
 }
 
 export interface EventReminderResult {
-  /** Attendees addressed: PAID ticket holders of a paid event, or members «going» to a free one — never the key's user. */
+  /** People addressed in the chosen `audience` — never the key's user. */
   recipients: number
+  /** The audience that was used (`going` when the request omitted it). */
+  audience: ReminderAudience
   channels: ReminderChannel[]
   /** Bell notifications stored (0 without `inApp`). */
   inApp: number
@@ -352,8 +368,8 @@ export interface EventReminderResult {
 
 // ─── Content invitations (1.9.0) ─────────────────────────────────────────────
 
-/** The sections an invitation can point at. */
-export type ContentInviteType = 'blog' | 'album' | 'event'
+/** The sections an invitation can point at. `project` / `project2` are the two projects sections. */
+export type ContentInviteType = 'blog' | 'album' | 'event' | 'tweet' | 'project' | 'project2' | 'consultant'
 
 export interface CreateContentInvitationsInput {
   resourceType: ContentInviteType
@@ -362,6 +378,11 @@ export interface CreateContentInvitationsInput {
   inviteeIds: string[]
   /** Up to 300 characters, shown with the invitation. */
   message?: string
+  /**
+   * Where each invitee hears about it — the same three as a reminder. Omitted → `['push', 'inApp']`
+   * (no e-mail unless you ask for it). An empty or unknown value → 400 `INVITE_CHANNEL_INVALID`.
+   */
+  channels?: ReminderChannel[]
 }
 
 /**
@@ -374,6 +395,10 @@ export type ContentInviteSkipReason = 'SELF' | 'ALREADY_INVITED' | 'UNAVAILABLE'
 export interface ContentInvitationsResult {
   invited: string[]
   skipped: Array<{ userId: string; reason: ContentInviteSkipReason }>
+  /** The channels that were used. */
+  channels: ReminderChannel[]
+  /** E-mails QUEUED (0 without `email`). Not a delivery count. */
+  emailQueued: number
 }
 
 export interface CreateBlogInput {
@@ -1258,6 +1283,18 @@ export type GurbErrorCode =
   | 'INVITES_DAILY_LIMIT'
   /** The key's user is restricted (suspended, or blocked from posting) in this community. */
   | 'RESTRICTION_BLOCKED'
+  /** `channels` on an invitation is empty or holds an unknown value. */
+  | 'INVITE_CHANNEL_INVALID'
+  /** `audience` on a reminder is not going / interested / all / members. */
+  | 'REMINDER_AUDIENCE_INVALID'
+  /** `audience: 'members'` with no `userIds`. */
+  | 'REMINDER_MEMBERS_REQUIRED'
+  /** More than 200 `userIds`. */
+  | 'REMINDER_MEMBERS_TOO_MANY'
+  /** `message` over 300 characters. */
+  | 'REMINDER_MESSAGE_TOO_LONG'
+  /** `audience: 'all'` — the community already sent 3 such reminders in the last 24 hours. */
+  | 'REMINDER_BROAD_DAILY_LIMIT'
   | 'NETWORK_ERROR'
   | 'UNKNOWN'
 

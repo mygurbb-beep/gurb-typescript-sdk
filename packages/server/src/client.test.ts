@@ -643,6 +643,24 @@ describe('event reminders + content invitations (1.9.0)', () => {
     expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ channels: ['push', 'inApp'] })
   })
 
+  it('events.sendReminder sends the audience, the picked members and the message as given', async () => {
+    const data = { recipients: 1, audience: 'members', channels: ['inApp'], inApp: 1, push: 0, emailQueued: 0 }
+    const { fn, calls } = stubFetch(200, { success: true, data })
+    const client = createGurbClient({ apiKey: KEY, baseUrl: 'https://x.test', fetch: fn })
+    const input = { channels: ['inApp' as const], audience: 'members' as const, userIds: ['u2'], message: 'لا تنسون' }
+
+    await expect(client.events.sendReminder('e1', input)).resolves.toEqual(data)
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual(input)
+  })
+
+  it('maps the audience refusals to stable codes', async () => {
+    for (const code of ['REMINDER_AUDIENCE_INVALID', 'REMINDER_MEMBERS_REQUIRED', 'REMINDER_MEMBERS_TOO_MANY', 'REMINDER_MESSAGE_TOO_LONG']) {
+      const { fn } = stubFetch(400, { success: false, code, message: 'refused' })
+      const client = createGurbClient({ apiKey: KEY, fetch: fn })
+      await expect(client.events.sendReminder('e1', { channels: ['inApp'], audience: 'members' })).rejects.toMatchObject({ code, status: 400 })
+    }
+  })
+
   it('a reminder cooldown is its own code and is NOT retryable', async () => {
     const { fn } = stubFetch(429, { success: false, code: 'EVENT_REMINDER_COOLDOWN', message: 'A reminder … was sent a few minutes ago' })
     const client = createGurbClient({ apiKey: KEY, fetch: fn })
@@ -669,6 +687,24 @@ describe('event reminders + content invitations (1.9.0)', () => {
     await expect(client.contentInvitations.create(input)).resolves.toEqual(data)
     expect(calls[0]!.url).toBe('https://x.test/api/sdk/content-invitations')
     expect(JSON.parse(String(calls[0]!.init.body))).toEqual(input)
+  })
+
+  it('contentInvitations.create sends the new item types and the channels as given', async () => {
+    const data = { invited: ['u2'], skipped: [], channels: ['email', 'inApp'], emailQueued: 1 }
+    const { fn, calls } = stubFetch(200, { success: true, data })
+    const client = createGurbClient({ apiKey: KEY, baseUrl: 'https://x.test', fetch: fn })
+    const input = { resourceType: 'project2' as const, resourceId: 'p1', inviteeIds: ['u2'], channels: ['email' as const, 'inApp' as const] }
+
+    await expect(client.contentInvitations.create(input)).resolves.toEqual(data)
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual(input)
+  })
+
+  it('an invalid invitation channel is its own code', async () => {
+    const { fn } = stubFetch(400, { success: false, code: 'INVITE_CHANNEL_INVALID', message: 'channels must be …' })
+    const client = createGurbClient({ apiKey: KEY, fetch: fn })
+    await expect(
+      client.contentInvitations.create({ resourceType: 'tweet', resourceId: 't1', inviteeIds: ['u2'], channels: [] }),
+    ).rejects.toMatchObject({ code: 'INVITE_CHANNEL_INVALID', status: 400 })
   })
 
   it('contentInvitations.listMine sends the item in the query', async () => {

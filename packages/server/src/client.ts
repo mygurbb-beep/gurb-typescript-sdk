@@ -384,7 +384,9 @@ export class GurbClient {
       this.#http.request('DELETE', `sdk/events/${encodeURIComponent(eventId)}`),
 
     /**
-     * «إرسال تذكير» — remind the event's attendees now, through the channels you pick.
+     * «إرسال تذكير» — remind people about the event now: the `audience` you pick (the confirmed by
+     * default, the interested, every member, or chosen members), through the channels you pick,
+     * with an optional `message`.
      *
      * The key's user needs `calendar:manage` or `calendar:moderate`. One manual reminder per
      * event per 10 minutes (`EVENT_REMINDER_COOLDOWN`); a draft, cancelled, finished or started
@@ -395,10 +397,12 @@ export class GurbClient {
   }
 
   /**
-   * «دعوة للمشاهدة» — invite members to look at a blog post, an album or an event.
+   * «دعوة للمشاهدة» — invite members to look at a blog post, an album, an event, a post, a project
+   * (either projects section) or a consultant, through the channels you pick (default push + bell).
    *
-   * No permission is needed, but the key's user must be able to open the item, and each invitee
-   * too (others come back `UNAVAILABLE`). A person is invited to an item once, by anyone. The
+   * The key's user needs the item section's manage or moderate permission (`INSUFFICIENT_PERMISSION`
+   * otherwise; consultants: `consultants:manage`) and must be able to open the item, and each
+   * invitee too (others come back `UNAVAILABLE`). A person is invited to an item once, by anyone. The
    * item's section must be on the plan (`FEATURE_NOT_AVAILABLE`). 20 invitees per call, 100 per
    * user per day (`INVITES_DAILY_LIMIT`).
    */

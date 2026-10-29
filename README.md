@@ -111,12 +111,17 @@ pays for.
 ```ts
 // «إرسال تذكير» — the key's user needs calendar:manage or calendar:moderate
 const r = await gurb.events.sendReminder('ev_1', { channels: ['push', 'inApp'] }) // or 'email', or all three
-r.recipients   // attendees addressed (never the key's user)
+r.recipients   // people addressed (never the key's user)
 r.emailQueued  // e-mails are queued, not yet delivered
 
-// «دعوة للمشاهدة» — any member who can open the item
-const { invited, skipped } = await gurb.contentInvitations.create({
+// WHO: 'going' (default) | 'interested' | 'all' | 'members' (+ userIds), with an optional message
+await gurb.events.sendReminder('ev_1', { channels: ['inApp'], audience: 'all', message: 'لا تنسون الكتاب' })
+await gurb.events.sendReminder('ev_1', { channels: ['push'], audience: 'members', userIds: ['u_2'] })
+
+// «دعوة للمشاهدة» — the item section's managers (manage | moderate): blog, album, event, tweet, project, project2, consultant
+const { invited, skipped, emailQueued } = await gurb.contentInvitations.create({
   resourceType: 'album', resourceId: 'al_1', inviteeIds: ['u_2', 'u_3'], message: 'شوفوا الصور',
+  channels: ['email', 'push', 'inApp'], // omitted → ['push', 'inApp']
 })
 // skipped[i].reason: 'SELF' | 'ALREADY_INVITED' | 'UNAVAILABLE'
 await gurb.contentInvitations.listMine({ resourceType: 'album', resourceId: 'al_1' })
@@ -124,7 +129,8 @@ await gurb.contentInvitations.listMine({ resourceType: 'album', resourceId: 'al_
 
 - One manual reminder per event per 10 minutes → `EVENT_REMINDER_COOLDOWN` (429, **not** retryable).
   A draft, cancelled, finished or started event → `EVENT_NOT_REMINDABLE` / `EVENT_ALREADY_STARTED`;
-  no attendees → `EVENT_REMINDER_NO_RECIPIENTS`.
+  nobody in the chosen audience → `EVENT_REMINDER_NO_RECIPIENTS`. `audience: 'members'` without
+  `userIds` → `REMINDER_MEMBERS_REQUIRED`; more than 200 → `REMINDER_MEMBERS_TOO_MANY`.
 - A person is invited to an item **once**, by anyone. `UNAVAILABLE` deliberately covers «not a member»,
   «hidden from your member directory» and «cannot open the item», so ids cannot be probed.
   20 invitees per call; 100 invitations per user per day → `INVITES_DAILY_LIMIT` (not retryable).
