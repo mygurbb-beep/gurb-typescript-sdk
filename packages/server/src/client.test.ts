@@ -850,3 +850,32 @@ describe('event registrations (1.10.0)', () => {
     await expect(client.events.update('e1', { approvalGuests: true })).rejects.toMatchObject({ code, status: 400 })
   })
 })
+
+describe('ids in the request path', () => {
+  // encodeURIComponent keeps «.», so ".." would be collapsed by URL into another route sent with
+  // this key, and "" would turn members.get('') into the members LIST. Nothing may leave.
+  it.each([
+    ['..', 'u2'],
+    ['.', 'u2'],
+    ['e1', '..'],
+    ['', 'u2'],
+  ])('events.approveRegistration(%j, %j) is refused locally, before any request', async (eventId, userId) => {
+    const { client, calls } = spyClient()
+    const err = await client.events.approveRegistration(eventId, userId).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(GurbApiError)
+    expect(err).toMatchObject({ code: 'VALIDATION_ERROR', status: 0 })
+    expect(calls).toHaveLength(0)
+  })
+
+  it("members.get('') does not read the members list instead", async () => {
+    const { client, calls } = spyClient()
+    await expect(client.members.get('')).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 0 })
+    expect(calls).toHaveLength(0)
+  })
+
+  it('an id that merely contains dots still goes out, encoded as one segment', async () => {
+    const { client, calls } = spyClient({ success: true, data: { status: 'GOING' } })
+    await client.events.approveRegistration('e.1', '...')
+    expect(calls[0]?.url).toBe('https://x.test/api/sdk/events/e.1/registrations/.../approve')
+  })
+})

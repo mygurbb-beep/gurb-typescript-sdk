@@ -56,6 +56,18 @@ export class Transport {
     path: string,
     opts: { query?: Record<string, QueryValue>; body?: unknown } = {},
   ): Promise<T> {
+    // Every id is a whole path segment, and encodeURIComponent keeps «.»: an id of ".." is
+    // collapsed by URL into a DIFFERENT route, sent with this key (sdk/events/../registrations/…),
+    // and an empty one turns members.get('') into the members LIST (sdk/members/). Refused here,
+    // once for every method, before anything is sent — the same guard as the PHP Requester.
+    if (path.replace(/^\/+/, '').split('/').some((s) => s === '' || s === '.' || s === '..')) {
+      throw new GurbApiError({
+        message: `An id in the request path is empty, "." or "..": ${path}`,
+        code: 'VALIDATION_ERROR',
+        status: 0,
+      })
+    }
+
     const url = new URL(`${this.#baseUrl}/api/${path.replace(/^\/+/, '')}`)
     for (const [key, value] of Object.entries(opts.query ?? {})) {
       if (value !== undefined) url.searchParams.set(key, String(value))
