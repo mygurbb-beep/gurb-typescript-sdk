@@ -13,6 +13,41 @@ contract.
 > had drifted apart despite shipping the same contract. The entries below 1.6.0
 > describe releases that were never published to npm; 1.6.0 is the first.
 
+## @gurb/server 1.10.0 + @gurb/api-types 1.10.0 (gurb/sdk 1.10.0)
+
+`@gurb/embed` stays at 1.8.0 (unchanged). The PHP SDK ships the same contract as `gurb/sdk` 1.10.0.
+
+### Added — event registration: guests, approval and questions (feat/event-guests)
+
+«تسجيل الزوار في الفعاليات» — the organiser's surface. The visitor's own flow (register, verify the
+e-mailed code, book, cancel) is browser-only on Gurb's shared event page and is not in this SDK.
+
+- `events.listRegistrations(eventId, { status? })` → `GET /api/sdk/events/{id}/registrations` —
+  «طلبات التسجيل»: members and guests (`isGuest`) who registered, their `answers` and the decision.
+  `status`: `PENDING` (default), `GOING`, `DECLINED` or `ALL`; `counts` per status.
+- `events.approveRegistration(eventId, userId)` → `POST /api/sdk/events/{id}/registrations/{userId}/approve`
+  — `PENDING` → `GOING`.
+- `events.declineRegistration(eventId, userId, { reason? })` →
+  `POST /api/sdk/events/{id}/registrations/{userId}/decline` — `PENDING` → `DECLINED`; the reason
+  (≤ 500) is sent to the person.
+- `CreateEventInput` / `UpdateEventInput` and `Event` gain the optional `guestRegistration`,
+  `approvalGuests`, `approvalMembers` and `registrationQuestions` (the join-form document, questions only).
+  `guestRegistration` works on free AND paid events: on a paid one the visitor pays the ticket price on
+  the shared page and returns to it with the ticket. Approval stays free-only.
+  The three calls need `calendar:manage` or `calendar:moderate` (approve/decline: a `write` key); the
+  settings ride on `events.create` / `events.update` and need what those need.
+- Types: `JoinText`, `JoinFormQuestionType`, `JoinFormQuestion`, `JoinFormSection`, `JoinFormDocument`,
+  `JoinChoiceAnswer`, `JoinAnswerValue`, `JoinAnswers`, `EventRegistrationStatus`,
+  `ListEventRegistrationsParams`, `EventRegistration`, `EventRegistrationList`,
+  `DeclineEventRegistrationInput`.
+- Error codes: `REGISTRATION_NOT_PENDING`, `EVENT_FULL`, `EVENT_NOT_BOOKABLE`,
+  `APPROVAL_REQUIRES_FREE_EVENT`,
+  `EVENT_REGISTRATION_SETTING_INVALID` (a setting that is not true/false) — none retryable.
+
+Requires a Gurb backend with feat/event-guests deployed — that branch adds the `/api/sdk` routes above
+(`src/sdk/routes/event-registrations.sdk.routes.ts`) and the four settings on `POST|PATCH /api/sdk/events`.
+Do not publish before it is live in production.
+
 ## @gurb/server 1.9.0 + @gurb/api-types 1.9.0 (gurb/sdk 1.9.0)
 
 `@gurb/embed` stays at 1.8.0 (unchanged). The PHP SDK ships the same contract as `gurb/sdk` 1.9.0.

@@ -1,6 +1,6 @@
 {
   "name": "@gurb/api-types",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "Shared request/response types for the Gurb API. No runtime code.",
   "type": "module",
   "main": "./dist/index.cjs",

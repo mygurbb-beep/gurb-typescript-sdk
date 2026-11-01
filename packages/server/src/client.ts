@@ -70,6 +70,9 @@ import {
   type CreateContentInvitationsInput,
   type EventReminderResult,
   type SendEventReminderInput,
+  type DeclineEventRegistrationInput,
+  type EventRegistrationList,
+  type ListEventRegistrationsParams,
 } from '@gurb/api-types'
 import { GurbApiError } from './errors.js'
 import { assertServerEnvironment, assertValidApiKey } from './key.js'
@@ -91,6 +94,9 @@ export interface GurbClientOptions {
 }
 
 const DEFAULT_BASE_URL = 'https://mygurb.com'
+
+/** The `status` filters `events.listRegistrations` accepts — checked locally, as the PHP SDK does. */
+const REGISTRATION_FILTERS: ReadonlyArray<string> = ['PENDING', 'GOING', 'DECLINED', 'ALL']
 
 /**
  * A refusal that never left the process.
@@ -394,6 +400,52 @@ export class GurbClient {
      */
     sendReminder: (eventId: string, input: SendEventReminderInput): Promise<EventReminderResult> =>
       this.#http.request('POST', `sdk/events/${encodeURIComponent(eventId)}/reminders`, { body: input }),
+
+    /**
+     * «طلبات التسجيل» — the people who registered for the event (members and guests), with their
+     * answers to its questions and the organiser's decision. `status` filters: omitted → `PENDING`.
+     *
+     * The key's user needs `calendar:manage` or `calendar:moderate`, and must see the event at the
+     * moderator tier — otherwise `NOT_FOUND`, not a 403, so event ids cannot be probed.
+     */
+    listRegistrations: (eventId: string, params: ListEventRegistrationsParams = {}): Promise<EventRegistrationList> => {
+      if (params.status !== undefined && !REGISTRATION_FILTERS.includes(params.status)) {
+        return Promise.reject(localValidation('Unknown registration status — use "PENDING", "GOING", "DECLINED" or "ALL".'))
+      }
+      return this.#http.request('GET', `sdk/events/${encodeURIComponent(eventId)}/registrations`, { query: { ...params } })
+    },
+
+    /**
+     * Approve a pending registration: `PENDING` → `GOING` (with an entry ticket when the event
+     * issues them). The person is told by e-mail, and a member also in the app.
+     *
+     * `EVENT_FULL` (400) when it would exceed the capacity; `REGISTRATION_NOT_PENDING` (409) when it
+     * was already decided or withdrawn; `EVENT_NOT_BOOKABLE` (409) when the event is a draft,
+     * cancelled or over. Same permission as `listRegistrations`.
+     */
+    approveRegistration: (eventId: string, userId: string): Promise<{ status: 'GOING' }> =>
+      this.#http.request(
+        'POST',
+        `sdk/events/${encodeURIComponent(eventId)}/registrations/${encodeURIComponent(userId)}/approve`,
+      ),
+
+    /**
+     * Decline a pending registration: `PENDING` → `DECLINED`, with an optional `reason` sent to the
+     * person (the server keeps the first 500 characters). A declined person cannot ask again.
+     * `REGISTRATION_NOT_PENDING` (409) when it was already decided. Same permission as
+     * `listRegistrations`.
+     */
+    declineRegistration: (
+      eventId: string,
+      userId: string,
+      input: DeclineEventRegistrationInput = {},
+    ): Promise<{ status: 'DECLINED' }> =>
+      this.#http.request(
+        'POST',
+        `sdk/events/${encodeURIComponent(eventId)}/registrations/${encodeURIComponent(userId)}/decline`,
+        // No reason, no body — the same wire as the PHP SDK.
+        input.reason === undefined ? {} : { body: { reason: input.reason } },
+      ),
   }
 
   /**

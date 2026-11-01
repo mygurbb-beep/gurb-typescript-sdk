@@ -722,3 +722,131 @@ describe('event reminders + content invitations (1.9.0)', () => {
     expect((err as GurbApiError).isRetryable).toBe(false)
   })
 })
+
+describe('event registrations (1.10.0)', () => {
+  const registration = {
+    userId: 'u2',
+    name: 'سارة القحطاني',
+    email: 'sara@example.com',
+    avatar: null,
+    isGuest: true,
+    status: 'PENDING',
+    answers: { q1: 'نعم', q2: { optionId: 'o1' } },
+    createdAt: '2026-10-29T08:00:00.000Z',
+    decidedAt: null,
+    declineReason: null,
+  }
+
+  it('events.listRegistrations GETs the event registrations with the status filter', async () => {
+    const data = { items: [registration], counts: { PENDING: 1, GOING: 4, DECLINED: 0 } }
+    const { fn, calls } = stubFetch(200, { success: true, data })
+    const client = createGurbClient({ apiKey: KEY, baseUrl: 'https://x.test', fetch: fn })
+
+    await expect(client.events.listRegistrations('ev 1', { status: 'ALL' })).resolves.toEqual(data)
+
+    expect(calls[0]!.url).toBe('https://x.test/api/sdk/events/ev%201/registrations?status=ALL')
+    expect(calls[0]!.init.method).toBe('GET')
+  })
+
+  it('events.listRegistrations drops the filter when it is not given (the server defaults to PENDING)', async () => {
+    const { fn, calls } = stubFetch(200, { success: true, data: { items: [], counts: { PENDING: 0, GOING: 0, DECLINED: 0 } } })
+    const client = createGurbClient({ apiKey: KEY, baseUrl: 'https://x.test', fetch: fn })
+    await client.events.listRegistrations('e1')
+    expect(calls[0]!.url).toBe('https://x.test/api/sdk/events/e1/registrations')
+  })
+
+  it('events.approveRegistration POSTs to the person under the event, with no body', async () => {
+    const { fn, calls } = stubFetch(200, { success: true, data: { status: 'GOING' } })
+    const client = createGurbClient({ apiKey: KEY, baseUrl: 'https://x.test', fetch: fn })
+
+    await expect(client.events.approveRegistration('e1', 'u/2')).resolves.toEqual({ status: 'GOING' })
+
+    expect(calls[0]!.url).toBe('https://x.test/api/sdk/events/e1/registrations/u%2F2/approve')
+    expect(calls[0]!.init.method).toBe('POST')
+    expect(calls[0]!.init.body).toBeUndefined()
+  })
+
+  it('events.declineRegistration POSTs the reason as given', async () => {
+    const { fn, calls } = stubFetch(200, { success: true, data: { status: 'DECLINED' } })
+    const client = createGurbClient({ apiKey: KEY, baseUrl: 'https://x.test', fetch: fn })
+
+    await expect(client.events.declineRegistration('e1', 'u2', { reason: 'اكتمل العدد' })).resolves.toEqual({ status: 'DECLINED' })
+
+    expect(calls[0]!.url).toBe('https://x.test/api/sdk/events/e1/registrations/u2/decline')
+    expect(calls[0]!.init.method).toBe('POST')
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ reason: 'اكتمل العدد' })
+  })
+
+  it('events.declineRegistration without a reason sends no body', async () => {
+    const { fn, calls } = stubFetch(200, { success: true, data: { status: 'DECLINED' } })
+    const client = createGurbClient({ apiKey: KEY, fetch: fn })
+    await client.events.declineRegistration('e1', 'u2')
+    expect(calls[0]!.init.body).toBeUndefined()
+  })
+
+  it('an unknown status filter is refused before any request', async () => {
+    const { fn, calls } = stubFetch(200, { success: true, data: {} })
+    const client = createGurbClient({ apiKey: KEY, fetch: fn })
+    const err = await client.events.listRegistrations('e1', { status: 'WAITING' as never }).catch((e: unknown) => e)
+    expect(err).toMatchObject({ code: 'VALIDATION_ERROR', status: 0 })
+    expect(calls).toHaveLength(0)
+  })
+
+  it('maps the decision refusals to stable codes, none retryable', async () => {
+    const cases: Array<[number, string]> = [
+      [400, 'EVENT_FULL'],
+      [409, 'REGISTRATION_NOT_PENDING'],
+      [409, 'EVENT_NOT_BOOKABLE'],
+    ]
+    for (const [status, code] of cases) {
+      const { fn } = stubFetch(status, { success: false, code, message: 'refused' })
+      const client = createGurbClient({ apiKey: KEY, fetch: fn })
+      const err = await client.events.approveRegistration('e1', 'u2').catch((e: unknown) => e)
+      expect(err).toMatchObject({ code, status })
+      expect((err as GurbApiError).isRetryable).toBe(false)
+    }
+    const { fn } = stubFetch(409, { success: false, code: 'REGISTRATION_NOT_PENDING', message: 'refused' })
+    const client = createGurbClient({ apiKey: KEY, fetch: fn })
+    await expect(client.events.declineRegistration('e1', 'u2')).rejects.toMatchObject({ code: 'REGISTRATION_NOT_PENDING', status: 409 })
+  })
+
+  it('events.create sends the registration settings and questions as given', async () => {
+    const { fn, calls } = stubFetch(201, { success: true, data: { id: 'e1' } })
+    const client = createGurbClient({ apiKey: KEY, baseUrl: 'https://x.test', fetch: fn })
+    const input = {
+      title: 'Book club',
+      titleArabic: 'نادي الكتاب',
+      startDate: '2026-11-01T17:00:00.000Z',
+      endDate: '2026-11-01T19:00:00.000Z',
+      guestRegistration: true,
+      approvalGuests: true,
+      approvalMembers: false,
+      registrationQuestions: {
+        sections: [
+          {
+            id: 's1',
+            title: { ar: 'عنك' },
+            questions: [{ id: 'q1', type: 'short_text' as const, label: { ar: 'جهة العمل' }, required: true, maxLength: 200 }],
+          },
+        ],
+      },
+    }
+
+    await client.events.create(input)
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual(input)
+  })
+
+  it('events.update can clear the questions with null', async () => {
+    const { fn, calls } = stubFetch(200, { success: true, data: { id: 'e1' } })
+    const client = createGurbClient({ apiKey: KEY, fetch: fn })
+    await client.events.update('e1', { registrationQuestions: null, approvalMembers: false })
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ registrationQuestions: null, approvalMembers: false })
+  })
+
+  it('maps the free-events-only approval refusal on create and update to a stable code', async () => {
+    const code = 'APPROVAL_REQUIRES_FREE_EVENT'
+    const { fn } = stubFetch(400, { success: false, code, message: 'free events only' })
+    const client = createGurbClient({ apiKey: KEY, fetch: fn })
+    await expect(client.events.update('e1', { approvalGuests: true })).rejects.toMatchObject({ code, status: 400 })
+  })
+})

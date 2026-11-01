@@ -132,6 +132,15 @@ export interface Event {
   startsAt: string
   endsAt: string | null
   attendeeCount: number
+  /**
+   * «تسجيل الزوار» (1.10.0) — the event's registration settings. Optional because a response
+   * from a backend without the feature does not carry them; read an absent flag as `false` and
+   * absent questions as `null`. See `CreateEventInput` for what each one means.
+   */
+  guestRegistration?: boolean
+  approvalGuests?: boolean
+  approvalMembers?: boolean
+  registrationQuestions?: JoinFormDocument | null
 }
 
 export interface Blog {
@@ -321,9 +330,137 @@ export interface CreateEventInput {
   capacity?: number
   allowComments?: boolean
   tags?: string[]
+  /**
+   * «تسجيل الزوار» (1.10.0): people without a Gurb account may register through the event's
+   * shared link (name + e-mail, confirmed by an e-mailed code). On a paid event the visitor pays
+   * the ticket price on the same page and comes back to it with the ticket.
+   */
+  guestRegistration?: boolean
+  /**
+   * A guest's registration waits for an organiser's decision (`PENDING`) instead of taking a seat
+   * at once. FREE events only → 400 `APPROVAL_REQUIRES_FREE_EVENT`.
+   */
+  approvalGuests?: boolean
+  /** The same, for members: «سأحضر» becomes a request. FREE events only → 400 `APPROVAL_REQUIRES_FREE_EVENT`. */
+  approvalMembers?: boolean
+  /**
+   * Questions every registrant (member or guest) answers once, on the way in. The join-form shape,
+   * questions only (no `documents`). `null` removes them; a form with no questions is stored as `null`.
+   */
+  registrationQuestions?: JoinFormDocument | null
 }
 
 export type UpdateEventInput = Partial<CreateEventInput>
+
+// ─── Registration questions (1.10.0) ─────────────────────────────────────────
+
+/** Bilingual copy. Arabic is required; English falls back to it. */
+export interface JoinText {
+  ar: string
+  en?: string
+}
+
+/** The thirteen question types of Gurb's join form, which event registration reuses. */
+export type JoinFormQuestionType =
+  | 'short_text'
+  | 'paragraph'
+  | 'single_choice'
+  | 'multiple_choice'
+  | 'dropdown'
+  | 'yes_no'
+  | 'number'
+  | 'date'
+  | 'email'
+  | 'phone'
+  | 'link'
+  | 'rating'
+  | 'consent'
+
+/**
+ * One question. The common fields are typed; the per-type settings (`maxLength`, `options`,
+ * `allowOther`, `min`/`max`, `scale`, `statement`…) follow Gurb's join-form builder and are
+ * validated by the server (400 `JOIN_FORM_*` codes). Ids: letters, digits, `_` and `-`, 1–40.
+ */
+export interface JoinFormQuestion {
+  id: string
+  type: JoinFormQuestionType
+  label: JoinText
+  help?: JoinText
+  required: boolean
+  [setting: string]: unknown
+}
+
+export interface JoinFormSection {
+  id: string
+  title: JoinText
+  questions: JoinFormQuestion[]
+}
+
+/**
+ * The join-form document. On an event it carries questions only: `documents` must be absent or
+ * empty (an event takes no uploads).
+ */
+export interface JoinFormDocument {
+  /** Shape version; the server sets it. */
+  shape?: 1
+  sections: JoinFormSection[]
+  documents?: []
+}
+
+/** A choice answer: an option id, or the free text typed into «Other». */
+export type JoinChoiceAnswer = { optionId: string } | { other: string }
+
+/** One answer, keyed by question id in `JoinAnswers`. */
+export type JoinAnswerValue = string | number | boolean | JoinChoiceAnswer | { optionIds: string[]; other?: string }
+
+export type JoinAnswers = Record<string, JoinAnswerValue>
+
+// ─── Event registrations (1.10.0) ────────────────────────────────────────────
+
+/**
+ * Where a registration stands. `PENDING` waits for an organiser (approval is on); `GOING` holds a
+ * seat; `DECLINED` was refused by an organiser and cannot ask again.
+ */
+export type EventRegistrationStatus = 'PENDING' | 'GOING' | 'DECLINED'
+
+export interface ListEventRegistrationsParams {
+  /** Omitted → `PENDING`, the requests waiting for a decision. `ALL` = the three together. */
+  status?: EventRegistrationStatus | 'ALL'
+}
+
+/**
+ * One person who registered — a member, or a guest (`isGuest`) who registered through the shared
+ * link. Organisers see a guest's name and e-mail here; every other roster shows a guest as «زائر».
+ */
+export interface EventRegistration {
+  /** A `User.id` — what `approveRegistration` / `declineRegistration` take. */
+  userId: string
+  /** As THIS community knows the member; a guest's own name. */
+  name: string
+  email: string | null
+  avatar: string | null
+  isGuest: boolean
+  status: EventRegistrationStatus
+  /** Their answers to the event's questions, or `null` when the event asked none. */
+  answers: JoinAnswers | null
+  /** ISO 8601. */
+  createdAt: string | null
+  /** ISO 8601 — when an organiser approved or declined; `null` while pending or when no one decided. */
+  decidedAt: string | null
+  declineReason: string | null
+}
+
+export interface EventRegistrationList {
+  /** Newest first, up to 1000. A member who left the community drops out. */
+  items: EventRegistration[]
+  /** Totals per status, whatever `status` filtered. */
+  counts: Record<EventRegistrationStatus, number>
+}
+
+export interface DeclineEventRegistrationInput {
+  /** Sent to the person. Trimmed; the server keeps the first 500 characters. */
+  reason?: string
+}
 
 // ─── Event reminders (1.9.0) ─────────────────────────────────────────────────
 
@@ -1295,6 +1432,17 @@ export type GurbErrorCode =
   | 'REMINDER_MESSAGE_TOO_LONG'
   /** `audience: 'all'` — the community already sent 3 such reminders in the last 24 hours. */
   | 'REMINDER_BROAD_DAILY_LIMIT'
+  // Event registrations (1.10.0). None of these is helped by retrying now.
+  /** The registration is not waiting for a decision (already approved, declined or cancelled). */
+  | 'REGISTRATION_NOT_PENDING'
+  /** Approving it would exceed the event's capacity (or jump the waitlist). */
+  | 'EVENT_FULL'
+  /** The event is not open for booking (draft, cancelled or ended). */
+  | 'EVENT_NOT_BOOKABLE'
+  /** `approvalGuests` / `approvalMembers: true` on a paid event. */
+  | 'APPROVAL_REQUIRES_FREE_EVENT'
+  /** A registration setting that is not true/false (e.g. `approvalGuests: 'yes'`). */
+  | 'EVENT_REGISTRATION_SETTING_INVALID'
   | 'NETWORK_ERROR'
   | 'UNKNOWN'
 

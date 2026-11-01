@@ -135,6 +135,47 @@ await gurb.contentInvitations.listMine({ resourceType: 'album', resourceId: 'al_
   «hidden from your member directory» and «cannot open the item», so ids cannot be probed.
   20 invitees per call; 100 invitations per user per day → `INVITES_DAILY_LIMIT` (not retryable).
 
+## Event registration: guests, approval and questions (1.10.0)
+
+«تسجيل الزوار في الفعاليات». Four optional settings on `events.create` / `events.update`, and three
+calls for the organiser's «طلبات التسجيل». The key's user needs `calendar:manage` or `calendar:moderate`.
+
+```ts
+// Let people without a Gurb account register through the event's shared link, and review every request
+await gurb.events.create({
+  title: 'Book club', titleArabic: 'نادي الكتاب',
+  startDate: '2026-11-01T17:00:00Z', endDate: '2026-11-01T19:00:00Z',
+  guestRegistration: true,   // visitors register with name + e-mail (code-confirmed)
+  approvalGuests: true,      // a guest's registration waits for a decision
+  approvalMembers: false,    // members still get a seat at once
+  registrationQuestions: {   // the join-form shape, questions only
+    sections: [{ id: 's1', title: { ar: 'عنك' }, questions: [
+      { id: 'q1', type: 'short_text', label: { ar: 'جهة العمل' }, required: true, maxLength: 200 },
+    ] }],
+  },
+})
+await gurb.events.update('ev_1', { registrationQuestions: null }) // remove the questions
+
+// «طلبات التسجيل»
+const { items, counts } = await gurb.events.listRegistrations('ev_1')            // PENDING by default
+await gurb.events.listRegistrations('ev_1', { status: 'ALL' })                   // or GOING / DECLINED
+items[0].isGuest   // a guest: name + e-mail shown to organisers only
+items[0].answers   // { q1: 'Gurb' } — keyed by question id, or null
+
+await gurb.events.approveRegistration('ev_1', items[0].userId)                   // → { status: 'GOING' }
+await gurb.events.declineRegistration('ev_1', 'u_3', { reason: 'اكتمل العدد' })  // → { status: 'DECLINED' }
+```
+
+- **Paid events:** `guestRegistration` works on them too — the visitor pays the ticket price on the
+  shared page and comes back to it with the ticket. Approval stays free-only: `approvalGuests` /
+  `approvalMembers` on a paid event → `APPROVAL_REQUIRES_FREE_EVENT` (400).
+- Approving past the capacity → `EVENT_FULL` (400); a registration already decided or withdrawn →
+  `REGISTRATION_NOT_PENDING` (409); a draft, cancelled or finished event → `EVENT_NOT_BOOKABLE` (409).
+- A declined person cannot ask again. The `reason` is sent to them; the server keeps 500 characters.
+- An event that is not yours to organise answers `NOT_FOUND`, not a 403.
+- The visitor's own steps (register, confirm the code, book, cancel) happen in the browser on Gurb's
+  shared event page, with a share key and a short-lived guest token — they are not in this server SDK.
+
 ## Customize the community
 
 ```ts
@@ -528,6 +569,15 @@ Partner Sign-In communities add these, mostly from `embed.createSession` and `me
 | `ACCOUNT_NOT_USABLE` | the Gurb account behind the member is deactivated or expired |
 | `EXTERNAL_IDENTITY_MANUAL_LINK_REQUIRED` | a concurrent request claimed the same identity — retry once |
 | `EXTERNAL_IDENTITY_INVALID_INPUT` | the `externalUserId` or `email` cannot be acted on |
+
+Event registration (1.10.0) adds these — none is helped by retrying:
+
+| `code` | Meaning |
+|---|---|
+| `REGISTRATION_NOT_PENDING` | `approveRegistration` / `declineRegistration` on a registration that is not waiting for a decision |
+| `EVENT_FULL` | approving it would exceed the event's capacity |
+| `EVENT_NOT_BOOKABLE` | the event is a draft, cancelled or over |
+| `APPROVAL_REQUIRES_FREE_EVENT` | `approvalGuests` / `approvalMembers: true` on a paid event |
 
 ## Development
 
