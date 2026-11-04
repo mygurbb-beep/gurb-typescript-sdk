@@ -226,6 +226,56 @@ export interface Member {
   joinedAt: string
 }
 
+// ─── Partner profile fields ──────────────────────────────────────────────────
+
+/**
+ * Social links a partner may seed on a member's profile (max 500 each).
+ * `x` is also mirrored into the legacy `twitter` column server-side.
+ */
+export interface PartnerMemberSocial {
+  linkedin?: string | null
+  x?: string | null
+  instagram?: string | null
+  facebook?: string | null
+  youtube?: string | null
+  tiktok?: string | null
+  snapchat?: string | null
+  telegram?: string | null
+}
+
+/**
+ * Profile fields a partner may send for one person (1.11.0). Same shape on
+ * `members.bulkUpsert` rows and on `embed.createSession`.
+ *
+ * Per field: absent → untouched, a string → set (trimmed, `""` clears),
+ * `null` → clear. A field the member has already edited in Gurb is KEPT and
+ * your value is silently ignored — the member owns their profile once they
+ * touch it. Directory privacy is never written: `phone` and `whatsapp` stay
+ * hidden from other members until the member opts in.
+ *
+ * A wrong type or a value over its limit: on `members.bulkUpsert` the whole
+ * ROW fails with `VALIDATION_ERROR` and nothing on it is written; on
+ * `embed.createSession` that one field is dropped and the sign-in goes ahead
+ * (like a bad `avatarUrl`) — a bad profile field never blocks a login.
+ */
+export interface PartnerMemberProfile {
+  /** Max 200. Stored as the profile description. */
+  bio?: string | null
+  /** Max 200. Stored as `position`. */
+  jobTitle?: string | null
+  /** Max 200. */
+  company?: string | null
+  /** Max 200. */
+  industry?: string | null
+  /** Max 100. */
+  city?: string | null
+  /** Normalised like the member's own form. Hidden by default. */
+  phone?: string | null
+  /** Max 50. Hidden by default (follows phone). */
+  whatsapp?: string | null
+  social?: PartnerMemberSocial
+}
+
 // ─── Embed ───────────────────────────────────────────────────────────────────
 
 /**
@@ -244,6 +294,8 @@ export interface CreateEmbedSessionInput {
   displayName: string
   email?: string
   avatarUrl?: string
+  /** Seed or refresh the member's profile. See {@link PartnerMemberProfile}. */
+  profile?: PartnerMemberProfile
 }
 
 export interface EmbedSession {
@@ -1742,6 +1794,8 @@ export interface BulkMemberInput {
    * and no key can assign a platform role.
    */
   role?: CommunityRole
+  /** Seed or refresh the member's profile. Needs `users:manage` on the key. See {@link PartnerMemberProfile}. */
+  profile?: PartnerMemberProfile
 }
 
 export interface BulkFailure {

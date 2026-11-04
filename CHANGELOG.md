@@ -13,6 +13,26 @@ contract.
 > had drifted apart despite shipping the same contract. The entries below 1.6.0
 > describe releases that were never published to npm; 1.6.0 is the first.
 
+## @gurb/server 1.11.0 + @gurb/api-types 1.11.0 (gurb/sdk 1.11.0)
+
+`@gurb/embed` stays at 1.8.0 (unchanged). The PHP SDK ships the same contract as `gurb/sdk` 1.11.0.
+
+### Added — partner profile fields (feat/partner-profile-fields)
+
+- `BulkMemberInput.profile` and `CreateEmbedSessionInput.profile` — an optional
+  `PartnerMemberProfile`: `bio` (≤ 200), `jobTitle` (≤ 200), `company` (≤ 200), `industry` (≤ 200),
+  `city` (≤ 100), `phone`, `whatsapp` (≤ 50) and `social.{linkedin,x,instagram,facebook,youtube,tiktok,snapchat,telegram}`
+  (≤ 500 each). Sent as given: absent → untouched, a string → set (`""` clears), `null` → clear.
+- A field the member edited in Gurb is kept; directory privacy is never written (`phone` and
+  `whatsapp` stay hidden until the member opts in).
+- An invalid value fails that bulk ROW with `VALIDATION_ERROR`; on `embed.createSession` the field is
+  dropped and the sign-in goes ahead. The SDK adds no local guard: the server owns these limits.
+- `members.bulkUpsert` with `profile` needs `users:manage` on the key.
+- Types: `PartnerMemberProfile`, `PartnerMemberSocial`.
+
+Requires a Gurb backend with feat/partner-profile-fields deployed. Stacked on 1.10.0 (feat/event-guests),
+which is not published yet. Do not publish before both are live in production.
+
 ## @gurb/server 1.10.0 + @gurb/api-types 1.10.0 (gurb/sdk 1.10.0)
 
 `@gurb/embed` stays at 1.8.0 (unchanged). The PHP SDK ships the same contract as `gurb/sdk` 1.10.0.
