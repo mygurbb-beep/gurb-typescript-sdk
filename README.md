@@ -485,6 +485,36 @@ Up to 500 per call. Longer lists are rejected locally rather than sent — a req
 likely to die at a proxy timeout with no way to know which half landed. A duplicate id inside one
 batch is rejected too: it would race against itself server-side and the winner would be arbitrary.
 
+## Partner profile fields (1.11.0)
+
+A partner can seed a member's Gurb profile from its own records: an optional `profile` on each
+`members.bulkUpsert` row and on `embed.createSession` — the same `PartnerMemberProfile` shape on both.
+
+```ts
+await gurb.members.bulkUpsert([{
+  externalUserId: 'riyadah_42',
+  displayName: 'Ali Ahmed',
+  profile: {
+    bio: 'Founder of Acme',          // ≤ 200
+    jobTitle: 'CEO',                 // ≤ 200
+    company: 'Acme',                 // ≤ 200
+    industry: 'Retail',              // ≤ 200
+    city: 'Riyadh',                  // ≤ 100
+    phone: '+966500000000',          // hidden from other members until they opt in
+    whatsapp: '+966500000000',       // ≤ 50, hidden (follows phone)
+    social: { linkedin: 'https://www.linkedin.com/in/ali', x: 'https://x.com/ali' }, // ≤ 500 each
+  },
+}])
+```
+
+- A key you leave out is untouched; a string sets it (trimmed, `""` clears); `null` clears it.
+- **A field the member edited in Gurb is kept** — your value is ignored silently.
+- Directory privacy, birth date, gender, marital status, nationality and employee number are never written.
+- A wrong type or a value over its limit: on `bulkUpsert` that **row** fails with `VALIDATION_ERROR`
+  (nothing on it is written); on `createSession` that one field is **dropped** and the sign-in goes
+  ahead, like a bad `avatarUrl`.
+- `bulkUpsert` with `profile` needs `users:manage` on the key.
+
 ## Partner events (Partner Sign-In)
 
 For a **host** site whose members sign in to a Gurb community through it (RIYADAH is the first):

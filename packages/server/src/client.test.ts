@@ -239,6 +239,54 @@ describe('permissions', () => {
   })
 })
 
+describe('partner profile fields (1.11.0)', () => {
+  // null clears, "" clears, an absent key leaves the field alone — the SDK must
+  // send all three exactly as given, so it never fills or drops a key.
+  const profile = {
+    bio: 'Founder of Acme',
+    jobTitle: 'CEO',
+    company: 'Acme',
+    industry: 'Retail',
+    city: null,
+    phone: '+966500000000',
+    whatsapp: '',
+    social: { linkedin: 'https://www.linkedin.com/in/ali', x: 'https://x.com/ali', telegram: null },
+  }
+
+  it('embed.createSession sends profile as-is', async () => {
+    const { fn, calls } = stubFetch(200, {
+      data: { token: 'et_abc', expiresAt: '2026-08-11T00:02:00Z', userId: 'u1' },
+    })
+    const client = createGurbClient({ apiKey: KEY, baseUrl: 'https://x.test', fetch: fn })
+
+    await client.embed.createSession({ externalUserId: 'riyadah_1', displayName: 'Ali', profile })
+
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
+      externalUserId: 'riyadah_1',
+      displayName: 'Ali',
+      profile,
+    })
+  })
+
+  it('members.bulkUpsert sends each row\'s profile as-is, and no profile where none was given', async () => {
+    const { fn, calls } = stubFetch(200, { data: { created: [], updated: [], failed: [], total: 2 } })
+    const client = createGurbClient({ apiKey: KEY, baseUrl: 'https://x.test', fetch: fn })
+
+    await client.members.bulkUpsert([
+      { externalUserId: 'riyadah_1', displayName: 'Ali', profile },
+      { externalUserId: 'riyadah_2', displayName: 'Sara' },
+    ])
+
+    expect(calls[0]!.url).toBe('https://x.test/api/sdk/members/bulk')
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
+      members: [
+        { externalUserId: 'riyadah_1', displayName: 'Ali', profile },
+        { externalUserId: 'riyadah_2', displayName: 'Sara' },
+      ],
+    })
+  })
+})
+
 describe('bulk members', () => {
   const rows = (n: number) =>
     Array.from({ length: n }, (_, i) => ({ externalUserId: `u${i}`, displayName: `User ${i}` }))
